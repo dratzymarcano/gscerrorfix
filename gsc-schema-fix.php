@@ -1325,59 +1325,6 @@ class GSC_Schema_Fix {
                 <div id="gsc-test-results"></div>
             </div>
             
-            <div class="gsc-admin-section">
-                <h2><?php _e('GSC Error Detection & Fixing', 'gsc-schema-fix'); ?></h2>
-                <p><?php _e('Scan your products for Google Search Console schema errors and automatically fix them.', 'gsc-schema-fix'); ?></p>
-                
-                <div class="gsc-error-controls">
-                    <button type="button" id="gsc-scan-errors" class="button button-primary">
-                        <span class="dashicons dashicons-search"></span> <?php _e('Scan for Errors', 'gsc-schema-fix'); ?>
-                    </button>
-                    <button type="button" id="gsc-fix-errors" class="button button-secondary" style="display: none;">
-                        <span class="dashicons dashicons-admin-tools"></span> <?php _e('Auto-Fix Errors', 'gsc-schema-fix'); ?>
-                    </button>
-                    <span id="gsc-scan-loading" class="gsc-loading" style="display: none;">
-                        <span class="spinner is-active"></span> <?php _e('Scanning...', 'gsc-schema-fix'); ?>
-                    </span>
-                </div>
-                
-                <?php
-                $last_scan = get_option('gsc_schema_fix_last_scan');
-                if ($last_scan) {
-                    echo '<p style="color: #666; font-size: 12px; margin-top: 10px;">' . 
-                         __('Last scan:', 'gsc-schema-fix') . ' ' . 
-                         '<strong>' . date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_scan)) . '</strong>' .
-                         '</p>';
-                }
-                ?>
-                
-                <div id="gsc-error-results"></div>
-                
-                <h3 style="margin-top: 25px;"><?php _e('Automatic Error Scanning', 'gsc-schema-fix'); ?></h3>
-                <table class="form-table gsc-settings-table">
-                    <tr>
-                        <th><?php _e('Error Scanning', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <label class="gsc-toggle">
-                                <input type="checkbox" name="enable_error_scanning" value="1" <?php checked(!empty($this->options['enable_error_scanning'])); ?>>
-                                <span class="gsc-toggle-slider"></span>
-                            </label>
-                            <span class="gsc-toggle-label"><?php _e('Automatically scan for schema errors daily', 'gsc-schema-fix'); ?></span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><?php _e('Auto-Fix Errors', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <label class="gsc-toggle">
-                                <input type="checkbox" name="enable_auto_fix" value="1" <?php checked(!empty($this->options['enable_auto_fix'])); ?>>
-                                <span class="gsc-toggle-slider"></span>
-                            </label>
-                            <span class="gsc-toggle-label"><?php _e('Automatically fix detected errors', 'gsc-schema-fix'); ?></span>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            
             <div class="gsc-admin-section gsc-settings-section">
                 <div class="gsc-section-header">
                     <h2><span class="dashicons dashicons-admin-settings"></span> <?php _e('Feature Settings', 'gsc-schema-fix'); ?></h2>
@@ -1558,6 +1505,45 @@ class GSC_Schema_Fix {
                                 </label>
                             </div>
                         </div>
+
+                        <!-- Error Scanning -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-search"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Error Scanning', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Automatically scan for schema errors daily', 'gsc-schema-fix'); ?></p>
+                                <?php
+                                $last_scan = get_option('gsc_schema_fix_last_scan');
+                                if ($last_scan): ?>
+                                    <small class="gsc-badge">Last scan: <?php echo date_i18n('M j, g:i a', strtotime($last_scan)); ?></small>
+                                <?php endif; ?>
+                            </div>
+                            <div class="gsc-setting-toggle">
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_error_scanning" value="1" <?php checked(!empty($this->options['enable_error_scanning'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Auto-Fix Errors -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-admin-tools"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Auto-Fix Errors', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Automatically fix detected schema errors', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_auto_fix" value="1" <?php checked(!empty($this->options['enable_auto_fix'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="gsc-save-section">
@@ -1609,6 +1595,27 @@ class GSC_Schema_Fix {
                         </td>
                     </tr>
                 </table>
+            </div>
+            
+            <div class="gsc-admin-section">
+                <div class="gsc-section-header">
+                    <h2><span class="dashicons dashicons-admin-tools"></span> <?php _e('Error Detection & Fixing Tools', 'gsc-schema-fix'); ?></h2>
+                    <p><?php _e('Manually scan and fix schema errors on your products.', 'gsc-schema-fix'); ?></p>
+                </div>
+                
+                <div class="gsc-error-controls">
+                    <button type="button" id="gsc-scan-errors" class="button button-primary button-large">
+                        <span class="dashicons dashicons-search"></span> <?php _e('Scan for Errors Now', 'gsc-schema-fix'); ?>
+                    </button>
+                    <button type="button" id="gsc-fix-errors" class="button button-secondary button-large" style="display: none;">
+                        <span class="dashicons dashicons-admin-tools"></span> <?php _e('Auto-Fix Detected Errors', 'gsc-schema-fix'); ?>
+                    </button>
+                    <span id="gsc-scan-loading" class="gsc-loading" style="display: none;">
+                        <span class="spinner is-active"></span> <?php _e('Scanning...', 'gsc-schema-fix'); ?>
+                    </span>
+                </div>
+                
+                <div id="gsc-error-results"></div>
             </div>
             
             <div class="gsc-admin-section">

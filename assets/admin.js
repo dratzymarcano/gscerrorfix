@@ -276,26 +276,18 @@ jQuery(document).ready(function($) {
                     
                     // Show success status
                     $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-success');
-                    $('#gsc-global-status .gsc-status-text').text('✓ All settings saved successfully!');
+                    $('#gsc-global-status .gsc-status-text').text('✓ Settings saved! Reloading page...');
                     $('#gsc-global-status .dashicons').removeClass('dashicons-update').addClass('dashicons-saved');
                     
                     // Show inline success message
                     $('#gsc-settings-message').html(
-                        '<div class="notice notice-success inline is-dismissible"><p><strong>✅ Settings saved successfully!</strong></p></div>'
+                        '<div class="notice notice-success inline is-dismissible"><p><strong>✅ Settings saved successfully! Reloading...</strong></p></div>'
                     );
                     
-                    // Auto-hide status after 5 seconds
+                    // Reload page after 1.5 seconds to show saved settings
                     setTimeout(function() {
-                        $('#gsc-global-status').fadeOut();
-                        $('#gsc-settings-message').fadeOut(function() {
-                            $(this).html('').show();
-                        });
-                    }, 5000);
-                    
-                    // Reload analytics using the global function
-                    if (typeof window.gscLoadAnalytics === 'function') {
-                        window.gscLoadAnalytics();
-                    }
+                        location.reload();
+                    }, 1500);
                 } else {
                     $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-error');
                     $('#gsc-global-status .gsc-status-text').text('✗ Error saving settings');

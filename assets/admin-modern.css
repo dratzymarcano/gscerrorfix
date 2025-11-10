@@ -230,3 +230,78 @@
 .gsc-setting-card:nth-child(10) .gsc-setting-icon {
     background: linear-gradient(135deg, #ff6e7f 0%, #bfe9ff 100%);
 }
+
+.gsc-setting-card:nth-child(11) .gsc-setting-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gsc-setting-card:nth-child(12) .gsc-setting-icon {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+/* Error Detection & Fixing Tools Section */
+.gsc-error-detection {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.gsc-error-detection h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 20px 0;
+    padding: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+
+.gsc-error-detection h2 .dashicons {
+    width: 32px;
+    height: 32px;
+    font-size: 32px;
+    color: #667eea;
+}
+
+.gsc-error-controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.gsc-error-controls .button {
+    padding: 10px 20px;
+    height: auto;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.gsc-error-controls .button-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: #fff;
+}
+
+.gsc-error-controls .button-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.gsc-error-controls .button-secondary {
+    background: #fff;
+    border: 2px solid #667eea;
+    color: #667eea;
+}
+
+.gsc-error-controls .button-secondary:hover {
+    background: #f8f9ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
