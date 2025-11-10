@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information.
- * Version: 2.0.0
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization and admin tools.
+ * Version: 3.0.0
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,8 +26,9 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '2.0.0');
+define('GSC_SCHEMA_FIX_VERSION', '3.0.0');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 class GSC_Schema_Fix {
     
@@ -36,6 +37,14 @@ class GSC_Schema_Fix {
     public function __construct() {
         add_action('init', array($this, 'init'));
         add_action('wp_head', array($this, 'add_schema_markup'), 99);
+        add_action('wp_head', array($this, 'optimize_meta_tags'), 1); // v3.0.0
+        add_action('the_content', array($this, 'enhance_content')); // v3.0.0
+        add_action('wp_footer', array($this, 'add_performance_optimizations')); // v3.0.0
+        add_action('admin_menu', array($this, 'add_admin_menu')); // v3.0.0
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts')); // v3.0.0
+        
+        // AJAX handlers for admin tools
+        add_action('wp_ajax_gsc_test_schema', array($this, 'ajax_test_schema')); // v3.0.0
         
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
@@ -65,6 +74,16 @@ class GSC_Schema_Fix {
             'discrete_shipping' => 1,
             'company_name' => get_bloginfo('name'),
             'company_location' => 'Deutschland',
+            // v3.0.0 - Meta optimization
+            'enable_meta_optimization' => 1,
+            'meta_title_template' => '{product_name} kaufen - {site_name}',
+            'meta_description_template' => '{product_name} - Diskrete Lieferung | Sichere Zahlung | {site_name}',
+            // v3.0.0 - Content enhancement
+            'enable_content_enhancement' => 1,
+            'add_internal_links' => 1,
+            // v3.0.0 - Performance
+            'enable_lazy_loading' => 1,
+            'enable_caching_headers' => 1,
         );
         
         add_option('gsc_schema_fix_options', $default_options);
@@ -275,6 +294,193 @@ class GSC_Schema_Fix {
         }
         
         return !empty($price) ? $price : '0.00';
+    }
+    
+    // ==================== v3.0.0 Features ====================
+    
+    /**
+     * Optimize meta tags for SEO
+     */
+    public function optimize_meta_tags() {
+        if (empty($this->options['enable_meta_optimization']) || !is_singular()) {
+            return;
+        }
+        
+        global $post;
+        
+        // Get product details
+        $product_name = get_the_title($post->ID);
+        $site_name = get_bloginfo('name');
+        
+        // Generate meta title
+        $title_template = !empty($this->options['meta_title_template']) ? $this->options['meta_title_template'] : '{product_name} - {site_name}';
+        $meta_title = str_replace(
+            array('{product_name}', '{site_name}'),
+            array($product_name, $site_name),
+            $title_template
+        );
+        
+        // Generate meta description
+        $desc_template = !empty($this->options['meta_description_template']) ? $this->options['meta_description_template'] : '{product_name} - {site_name}';
+        $meta_description = str_replace(
+            array('{product_name}', '{site_name}'),
+            array($product_name, $site_name),
+            $desc_template
+        );
+        
+        // Output meta tags
+        echo '<meta name="description" content="' . esc_attr($meta_description) . '">' . "\n";
+        echo '<meta property="og:title" content="' . esc_attr($meta_title) . '">' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr($meta_description) . '">' . "\n";
+        echo '<meta property="og:type" content="product">' . "\n";
+        
+        $image = get_the_post_thumbnail_url($post->ID, 'full');
+        if ($image) {
+            echo '<meta property="og:image" content="' . esc_url($image) . '">' . "\n";
+        }
+    }
+    
+    /**
+     * Enhance content with internal links
+     */
+    public function enhance_content($content) {
+        if (empty($this->options['enable_content_enhancement']) || !is_singular()) {
+            return $content;
+        }
+        
+        // Add related products link at the end
+        if (!empty($this->options['add_internal_links'])) {
+            $related_text = !empty($this->options['enable_german_optimization']) ? 
+                '<p><strong>Weitere interessante Produkte finden Sie in unserem <a href="' . home_url('/shop') . '">Online-Shop</a>.</strong></p>' :
+                '<p><strong>Browse more products in our <a href="' . home_url('/shop') . '">online shop</a>.</strong></p>';
+            
+            $content .= $related_text;
+        }
+        
+        return $content;
+    }
+    
+    /**
+     * Add performance optimizations
+     */
+    public function add_performance_optimizations() {
+        if (empty($this->options['enable_lazy_loading'])) {
+            return;
+        }
+        
+        // Add lazy loading for images
+        ?>
+        <script>
+        if ('loading' in HTMLImageElement.prototype) {
+            const images = document.querySelectorAll('img:not([loading])');
+            images.forEach(img => { img.loading = 'lazy'; });
+        }
+        </script>
+        <?php
+        
+        // Add cache headers (via PHP)
+        if (!empty($this->options['enable_caching_headers']) && !is_admin()) {
+            header('Cache-Control: public, max-age=31536000');
+        }
+    }
+    
+    /**
+     * Add admin menu
+     */
+    public function add_admin_menu() {
+        add_options_page(
+            __('GSC Schema Fix', 'gsc-schema-fix'),
+            __('GSC Schema Fix', 'gsc-schema-fix'),
+            'manage_options',
+            'gsc-schema-fix',
+            array($this, 'admin_page')
+        );
+    }
+    
+    /**
+     * Enqueue admin scripts
+     */
+    public function enqueue_admin_scripts($hook) {
+        if ($hook !== 'settings_page_gsc-schema-fix') {
+            return;
+        }
+        
+        wp_enqueue_style('gsc-admin-css', GSC_SCHEMA_FIX_PLUGIN_URL . 'assets/admin.css', array(), GSC_SCHEMA_FIX_VERSION);
+        wp_enqueue_script('gsc-admin-js', GSC_SCHEMA_FIX_PLUGIN_URL . 'assets/admin.js', array('jquery'), GSC_SCHEMA_FIX_VERSION, true);
+        
+        wp_localize_script('gsc-admin-js', 'gscAjax', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('gsc_admin_nonce')
+        ));
+    }
+    
+    /**
+     * Admin page
+     */
+    public function admin_page() {
+        ?>
+        <div class="wrap">
+            <h1><?php _e('GSC Schema Fix - Settings', 'gsc-schema-fix'); ?></h1>
+            <p><?php _e('Version', 'gsc-schema-fix'); ?>: <strong><?php echo GSC_SCHEMA_FIX_VERSION; ?></strong></p>
+            
+            <h2><?php _e('Schema Testing Tool', 'gsc-schema-fix'); ?></h2>
+            <p><?php _e('Enter a product ID to test schema generation:', 'gsc-schema-fix'); ?></p>
+            
+            <input type="number" id="gsc-test-product-id" placeholder="<?php _e('Product ID', 'gsc-schema-fix'); ?>" style="width: 200px;">
+            <button type="button" id="gsc-test-schema" class="button button-primary"><?php _e('Test Schema', 'gsc-schema-fix'); ?></button>
+            
+            <div id="gsc-test-results" style="margin-top: 20px;"></div>
+            
+            <h2><?php _e('Current Settings', 'gsc-schema-fix'); ?></h2>
+            <table class="form-table">
+                <tr>
+                    <th><?php _e('Schema Enabled', 'gsc-schema-fix'); ?></th>
+                    <td><?php echo !empty($this->options['enable_auto_offers']) ? '✅ Yes' : '❌ No'; ?></td>
+                </tr>
+                <tr>
+                    <th><?php _e('Currency', 'gsc-schema-fix'); ?></th>
+                    <td><?php echo esc_html($this->options['default_currency']); ?></td>
+                </tr>
+                <tr>
+                    <th><?php _e('German Optimization', 'gsc-schema-fix'); ?></th>
+                    <td><?php echo !empty($this->options['enable_german_optimization']) ? '✅ Yes' : '❌ No'; ?></td>
+                </tr>
+                <tr>
+                    <th><?php _e('Meta Optimization', 'gsc-schema-fix'); ?></th>
+                    <td><?php echo !empty($this->options['enable_meta_optimization']) ? '✅ Yes' : '❌ No'; ?></td>
+                </tr>
+                <tr>
+                    <th><?php _e('Content Enhancement', 'gsc-schema-fix'); ?></th>
+                    <td><?php echo !empty($this->options['enable_content_enhancement']) ? '✅ Yes' : '❌ No'; ?></td>
+                </tr>
+            </table>
+        </div>
+        <?php
+    }
+    
+    /**
+     * AJAX: Test schema generation
+     */
+    public function ajax_test_schema() {
+        check_ajax_referer('gsc_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        $product_id = intval($_POST['product_id']);
+        $post = get_post($product_id);
+        
+        if (!$post) {
+            wp_send_json_error('Product not found');
+        }
+        
+        $schema = $this->generate_product_schema($post);
+        
+        wp_send_json_success(array(
+            'schema' => $schema,
+            'json' => wp_json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+        ));
     }
 }
 
