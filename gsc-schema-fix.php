@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, and multi-language support.
- * Version: 4.0.0
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, and universal platform detection.
+ * Version: 4.0.1
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,13 +26,14 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.0');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.1');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 class GSC_Schema_Fix {
     
     private $options;
+    private $detected_platform; // v4.0.1
     
     public function __construct() {
         add_action('init', array($this, 'init'));
@@ -50,6 +51,7 @@ class GSC_Schema_Fix {
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
         
         $this->options = get_option('gsc_schema_fix_options', array());
+        $this->detected_platform = $this->detect_ecommerce_platform(); // v4.0.1
     }
     
     public function init() {
@@ -95,6 +97,123 @@ class GSC_Schema_Fix {
         // Fallback to English
         $fallback_key = $key . '_en';
         return isset($texts[$fallback_key]) ? $texts[$fallback_key] : '';
+    }
+    
+    /**
+     * v4.0.1 - Detect e-commerce platform
+     * @return array Platform info (name, version, active)
+     */
+    private function detect_ecommerce_platform() {
+        $platform = array(
+            'name' => 'none',
+            'version' => '',
+            'active' => false,
+            'post_types' => array()
+        );
+        
+        // Detect WooCommerce
+        if (class_exists('WooCommerce')) {
+            global $woocommerce;
+            $platform['name'] = 'WooCommerce';
+            $platform['version'] = defined('WC_VERSION') ? WC_VERSION : $woocommerce->version;
+            $platform['active'] = true;
+            $platform['post_types'] = array('product');
+        }
+        // Detect Easy Digital Downloads
+        elseif (class_exists('Easy_Digital_Downloads')) {
+            $platform['name'] = 'Easy Digital Downloads';
+            $platform['version'] = defined('EDD_VERSION') ? EDD_VERSION : '';
+            $platform['active'] = true;
+            $platform['post_types'] = array('download');
+        }
+        // Detect WP eCommerce
+        elseif (function_exists('wpsc_core_load_purchase_log_class')) {
+            $platform['name'] = 'WP eCommerce';
+            $platform['version'] = defined('WPSC_VERSION') ? WPSC_VERSION : '';
+            $platform['active'] = true;
+            $platform['post_types'] = array('wpsc-product');
+        }
+        // Detect Shopify (via WordPress integration)
+        elseif (defined('SHOPIFY_APP_PLUGIN_FILE')) {
+            $platform['name'] = 'Shopify';
+            $platform['version'] = '';
+            $platform['active'] = true;
+            $platform['post_types'] = array('product');
+        }
+        // Detect BigCommerce
+        elseif (class_exists('BigCommerce\\Plugin')) {
+            $platform['name'] = 'BigCommerce';
+            $platform['version'] = defined('BIGCOMMERCE_VERSION') ? BIGCOMMERCE_VERSION : '';
+            $platform['active'] = true;
+            $platform['post_types'] = array('bigcommerce_product');
+        }
+        // Generic product post type detection
+        elseif (post_type_exists('product')) {
+            $platform['name'] = 'Generic (Product CPT)';
+            $platform['version'] = '';
+            $platform['active'] = true;
+            $platform['post_types'] = array('product');
+        }
+        
+        return $platform;
+    }
+    
+    /**
+     * v4.0.1 - Get platform-specific product data
+     * @param WP_Post $post Product post object
+     * @return array Product data (price, currency, availability, etc.)
+     */
+    private function get_platform_product_data($post) {
+        $data = array(
+            'price' => null,
+            'currency' => $this->options['default_currency'],
+            'availability' => $this->options['default_availability'],
+            'sku' => '',
+            'brand' => get_bloginfo('name')
+        );
+        
+        switch ($this->detected_platform['name']) {
+            case 'WooCommerce':
+                if (function_exists('wc_get_product')) {
+                    $product = wc_get_product($post->ID);
+                    if ($product) {
+                        $data['price'] = $product->get_price();
+                        $data['currency'] = get_woocommerce_currency();
+                        $data['sku'] = $product->get_sku();
+                        
+                        // Get availability
+                        if ($product->is_in_stock()) {
+                            $data['availability'] = 'InStock';
+                        } elseif ($product->is_on_backorder()) {
+                            $data['availability'] = 'BackOrder';
+                        } else {
+                            $data['availability'] = 'OutOfStock';
+                        }
+                    }
+                }
+                break;
+                
+            case 'Easy Digital Downloads':
+                if (function_exists('edd_get_download')) {
+                    $data['price'] = edd_get_download_price($post->ID);
+                    $data['currency'] = edd_get_currency();
+                    $data['sku'] = get_post_meta($post->ID, 'edd_sku', true);
+                    $data['availability'] = 'InStock'; // EDD doesn't have stock management by default
+                }
+                break;
+                
+            case 'WP eCommerce':
+                $data['price'] = get_post_meta($post->ID, '_wpsc_price', true);
+                $data['sku'] = get_post_meta($post->ID, '_wpsc_sku', true);
+                break;
+                
+            case 'BigCommerce':
+                $data['price'] = get_post_meta($post->ID, 'bigcommerce_price', true);
+                $data['sku'] = get_post_meta($post->ID, 'bigcommerce_sku', true);
+                break;
+        }
+        
+        return $data;
     }
     
     public function activate() {
@@ -203,15 +322,21 @@ class GSC_Schema_Fix {
         // Add URL
         $schema['url'] = $product_url;
         
+        // v4.0.1 - Get platform-specific product data
+        $platform_data = $this->get_platform_product_data($post);
+        
         // Add offers (required)
         if (!empty($this->options['enable_auto_offers'])) {
-            $availability = !empty($this->options['default_availability']) ? $this->options['default_availability'] : 'InStock';
+            // Use platform-detected values with fallback to defaults
+            $availability = !empty($platform_data['availability']) ? $platform_data['availability'] : $this->options['default_availability'];
+            $currency = !empty($platform_data['currency']) ? $platform_data['currency'] : $this->options['default_currency'];
+            $offer_price = !empty($platform_data['price']) ? $platform_data['price'] : $price;
             
             $offer = array(
                 '@type' => 'Offer',
                 'url' => $product_url,
                 'priceCurrency' => $currency,
-                'price' => number_format((float)$price, 2, '.', ''),
+                'price' => number_format((float)$offer_price, 2, '.', ''),
                 'availability' => 'https://schema.org/' . $availability,
             );
             
@@ -307,33 +432,17 @@ class GSC_Schema_Fix {
         return $schema;
     }
     
+    /**
+     * v4.0.1 - Get product price using platform detection
+     */
     private function get_product_price($product_id) {
-        // Try WooCommerce first
-        if (function_exists('wc_get_product')) {
-            $product = wc_get_product($product_id);
-            if ($product) {
-                return $product->get_price();
-            }
+        $post = get_post($product_id);
+        if (!$post) {
+            return '0.00';
         }
         
-        // Try Easy Digital Downloads
-        if (function_exists('edd_get_download_price')) {
-            $price = edd_get_download_price($product_id);
-            if ($price) {
-                return $price;
-            }
-        }
-        
-        // Fallback to meta fields
-        $price = get_post_meta($product_id, '_price', true);
-        if (empty($price)) {
-            $price = get_post_meta($product_id, 'price', true);
-        }
-        if (empty($price)) {
-            $price = get_post_meta($product_id, 'edd_price', true);
-        }
-        
-        return !empty($price) ? $price : '0.00';
+        $platform_data = $this->get_platform_product_data($post);
+        return !empty($platform_data['price']) ? $platform_data['price'] : '0.00';
     }
     
     // ==================== v3.0.0 Features ====================
@@ -500,6 +609,25 @@ class GSC_Schema_Fix {
                     <tr>
                         <th><?php _e('Currency', 'gsc-schema-fix'); ?></th>
                         <td><strong><?php echo esc_html($this->options['default_currency']); ?></strong></td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('E-commerce Platform', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <?php if ($this->detected_platform['active']): ?>
+                                <span class="gsc-status enabled">
+                                    ✅ <?php echo esc_html($this->detected_platform['name']); ?>
+                                </span>
+                                <?php if (!empty($this->detected_platform['version'])): ?>
+                                    <br><small>Version: <strong><?php echo esc_html($this->detected_platform['version']); ?></strong></small>
+                                <?php endif; ?>
+                                <?php if (!empty($this->detected_platform['post_types'])): ?>
+                                    <br><small>Product Types: <strong><?php echo implode(', ', $this->detected_platform['post_types']); ?></strong></small>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span class="gsc-status disabled">❌ No platform detected</span>
+                                <br><small>Schema will use default settings</small>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <tr>
                         <th><?php _e('Auto Language Detection', 'gsc-schema-fix'); ?></th>
