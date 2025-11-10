@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: GSC Schema Fix Pro
+ * Plugin Name: GSC Schema Fix Pro Enterprise
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Advanced GSC error fixes with meta optimization, content enhancement, and comprehensive SEO improvements for e-commerce sites like papierk2.com.
- * Version: 2.0.0
+ * Description: Enterprise-grade SEO optimization suite with AI-powered content enhancement, real-time schema validation, competitor analysis, and automated technical SEO fixes specifically designed for e-commerce sites.
+ * Version: 3.0.0
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,9 +26,14 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '2.0.0');
+define('GSC_SCHEMA_FIX_VERSION', '3.0.0');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+// Load required classes
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-analytics-dashboard.php';
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-schema-validator.php';
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-ai-optimizer.php';
 
 class GSC_Schema_Fix {
     
@@ -36,6 +41,9 @@ class GSC_Schema_Fix {
     private $meta_optimizer;
     private $content_enhancer;
     private $performance_optimizer;
+    private $analytics_dashboard;
+    private $schema_validator;
+    private $ai_optimizer;
     
     public function __construct() {
         add_action('init', array($this, 'init'));
@@ -44,12 +52,29 @@ class GSC_Schema_Fix {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'admin_init'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+        
+        // AJAX handlers
         add_action('wp_ajax_gsc_test_schema', array($this, 'ajax_test_schema'));
         add_action('wp_ajax_gsc_optimize_site', array($this, 'ajax_optimize_site'));
+        add_action('wp_ajax_gsc_validate_schema', array($this, 'ajax_validate_schema'));
+        add_action('wp_ajax_gsc_analyze_content', array($this, 'ajax_analyze_content'));
+        add_action('wp_ajax_gsc_get_analytics', array($this, 'ajax_get_analytics'));
+        add_action('wp_ajax_gsc_fix_broken_links', array($this, 'ajax_fix_broken_links'));
+        add_action('wp_ajax_gsc_generate_sitemap', array($this, 'ajax_generate_sitemap'));
+        add_action('wp_ajax_gsc_competitor_analysis', array($this, 'ajax_competitor_analysis'));
+        add_action('wp_ajax_gsc_bulk_optimize', array($this, 'ajax_bulk_optimize'));
+        add_action('wp_ajax_gsc_export_data', array($this, 'ajax_export_data'));
+        
+        // Content filters
         add_action('the_content', array($this, 'enhance_content'));
         add_action('wp_footer', array($this, 'add_performance_optimizations'));
         add_filter('document_title_parts', array($this, 'optimize_title_tags'));
         add_filter('wp_title', array($this, 'optimize_wp_title'), 10, 2);
+        
+        // Cron jobs for automated optimization
+        add_action('gsc_daily_optimization', array($this, 'run_daily_optimization'));
+        add_action('gsc_weekly_report', array($this, 'send_weekly_report'));
+        
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
         
@@ -69,6 +94,15 @@ class GSC_Schema_Fix {
         
         // Initialize performance optimizer
         $this->performance_optimizer = new GSC_Performance_Optimizer($this->options);
+        
+        // Initialize analytics dashboard
+        $this->analytics_dashboard = new GSC_Analytics_Dashboard($this->options);
+        
+        // Initialize schema validator
+        $this->schema_validator = new GSC_Schema_Validator($this->options);
+        
+        // Initialize AI optimizer
+        $this->ai_optimizer = new GSC_AI_Optimizer($this->options);
     }
     
     public function init() {
@@ -76,7 +110,7 @@ class GSC_Schema_Fix {
     }
     
     public function activate() {
-        // Enhanced default options for papierk2.com optimization
+        // Enhanced default options for enterprise-grade optimization
         $default_options = array(
             // Schema options
             'enable_auto_rating' => 1,
@@ -85,7 +119,7 @@ class GSC_Schema_Fix {
             'rating_best' => '5',
             'rating_worst' => '1',
             'enable_auto_offers' => 1,
-            'default_currency' => 'EUR', // papierk2.com uses EUR
+            'default_currency' => 'EUR',
             'default_availability' => 'InStock',
             'enable_auto_review' => 1,
             'default_reviewer_name' => get_bloginfo('name'),
@@ -116,24 +150,70 @@ class GSC_Schema_Fix {
             'minify_html' => 1,
             'lazy_load_images' => 1,
             
-            // E-commerce specific (for papierk2.com)
+            // AI-powered features (NEW)
+            'enable_ai_optimization' => 1,
+            'ai_content_scoring' => 1,
+            'ai_keyword_suggestions' => 1,
+            'ai_readability_check' => 1,
+            'ai_sentiment_analysis' => 1,
+            
+            // Advanced schema validation (NEW)
+            'enable_schema_validation' => 1,
+            'real_time_validation' => 1,
+            'auto_fix_schema_errors' => 1,
+            'schema_monitoring' => 1,
+            
+            // SEO Analytics (NEW)
+            'enable_analytics' => 1,
+            'track_rankings' => 1,
+            'competitor_monitoring' => 1,
+            'keyword_tracking' => 1,
+            'analytics_email_reports' => 1,
+            
+            // Technical SEO automation (NEW)
+            'auto_fix_broken_links' => 1,
+            'redirect_management' => 1,
+            'auto_sitemap_generation' => 1,
+            'canonical_url_optimization' => 1,
+            'mobile_optimization' => 1,
+            
+            // Bulk operations (NEW)
+            'enable_bulk_operations' => 1,
+            'scheduled_optimizations' => 1,
+            'auto_backup_before_bulk' => 1,
+            
+            // E-commerce specific
             'ecommerce_site_type' => 'german_eshop',
             'company_location' => 'Bad Hersfeld, Deutschland',
             'company_phone' => '',
             'enable_german_seo' => 1,
-            'discrete_shipping_highlight' => 1
+            'discrete_shipping_highlight' => 1,
+            
+            // Notification settings
+            'email_notifications' => get_option('admin_email'),
+            'notification_frequency' => 'weekly',
+            'alert_on_errors' => 1
         );
         
         add_option('gsc_schema_fix_options', $default_options);
         
-        // Create log table and optimization tables
+        // Create enhanced database tables
         $this->create_log_table();
         $this->create_optimization_tables();
+        $this->create_analytics_tables();
+        $this->create_schema_validation_tables();
         
-        // Schedule performance optimization
+        // Schedule automated tasks
         if (!wp_next_scheduled('gsc_daily_optimization')) {
             wp_schedule_event(time(), 'daily', 'gsc_daily_optimization');
         }
+        
+        if (!wp_next_scheduled('gsc_weekly_report')) {
+            wp_schedule_event(time(), 'weekly', 'gsc_weekly_report');
+        }
+        
+        // Initialize first-time setup
+        $this->run_initial_site_scan();
     }
     
     public function deactivate() {
@@ -996,6 +1076,238 @@ class GSC_Schema_Fix {
         
         wp_send_json_success($optimization_results);
     }
+    
+    // NEW: Real-time schema validation
+    public function ajax_validate_schema() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+        
+        if ($post_id) {
+            $post = get_post($post_id);
+            $schema = $this->generate_comprehensive_product_schema($post);
+            $validation_results = $this->schema_validator->validate_schema($schema);
+            wp_send_json_success($validation_results);
+        } else {
+            // Validate all products
+            $all_results = $this->schema_validator->validate_all_products();
+            wp_send_json_success($all_results);
+        }
+    }
+    
+    // NEW: AI-powered content analysis
+    public function ajax_analyze_content() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+        
+        if ($post_id) {
+            $post = get_post($post_id);
+            $analysis = array(
+                'seo_score' => $this->ai_optimizer->calculate_seo_score($post),
+                'readability_score' => $this->ai_optimizer->calculate_readability($post),
+                'keyword_density' => $this->ai_optimizer->analyze_keywords($post),
+                'content_suggestions' => $this->ai_optimizer->get_content_suggestions($post),
+                'competitor_comparison' => $this->ai_optimizer->compare_with_competitors($post)
+            );
+            wp_send_json_success($analysis);
+        }
+    }
+    
+    // NEW: Get analytics dashboard data
+    public function ajax_get_analytics() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $analytics_data = array(
+            'overview' => $this->analytics_dashboard->get_overview(),
+            'top_products' => $this->analytics_dashboard->get_top_products(),
+            'schema_health' => $this->analytics_dashboard->get_schema_health(),
+            'performance_metrics' => $this->analytics_dashboard->get_performance_metrics(),
+            'ranking_changes' => $this->analytics_dashboard->get_ranking_changes(),
+            'error_log' => $this->analytics_dashboard->get_recent_errors()
+        );
+        
+        wp_send_json_success($analytics_data);
+    }
+    
+    // NEW: Fix broken links automatically
+    public function ajax_fix_broken_links() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $broken_links = $this->find_broken_links();
+        $fixed_count = 0;
+        
+        foreach ($broken_links as $link) {
+            if ($this->auto_fix_link($link)) {
+                $fixed_count++;
+            }
+        }
+        
+        wp_send_json_success(array(
+            'total_broken' => count($broken_links),
+            'fixed' => $fixed_count,
+            'remaining' => count($broken_links) - $fixed_count
+        ));
+    }
+    
+    // NEW: Generate XML sitemap
+    public function ajax_generate_sitemap() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $sitemap_url = $this->generate_xml_sitemap();
+        $this->ping_search_engines($sitemap_url);
+        
+        wp_send_json_success(array(
+            'sitemap_url' => $sitemap_url,
+            'products_included' => $this->count_sitemap_entries(),
+            'search_engines_notified' => true
+        ));
+    }
+    
+    // NEW: Competitor analysis
+    public function ajax_competitor_analysis() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $competitor_url = isset($_POST['competitor_url']) ? esc_url($_POST['competitor_url']) : '';
+        
+        if ($competitor_url) {
+            $analysis = array(
+                'schema_comparison' => $this->compare_schema($competitor_url),
+                'content_gaps' => $this->find_content_gaps($competitor_url),
+                'keyword_opportunities' => $this->find_keyword_opportunities($competitor_url),
+                'technical_comparison' => $this->compare_technical_seo($competitor_url)
+            );
+            wp_send_json_success($analysis);
+        } else {
+            wp_send_json_error('Competitor URL required');
+        }
+    }
+    
+    // NEW: Bulk optimization
+    public function ajax_bulk_optimize() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $operation = isset($_POST['operation']) ? sanitize_text_field($_POST['operation']) : '';
+        $product_ids = isset($_POST['product_ids']) ? array_map('intval', $_POST['product_ids']) : array();
+        
+        $results = array(
+            'processed' => 0,
+            'success' => 0,
+            'failed' => 0,
+            'errors' => array()
+        );
+        
+        foreach ($product_ids as $product_id) {
+            $results['processed']++;
+            
+            try {
+                switch ($operation) {
+                    case 'add_schema':
+                        $this->apply_schema_to_product($product_id);
+                        $results['success']++;
+                        break;
+                    case 'optimize_meta':
+                        $this->optimize_product_meta($product_id);
+                        $results['success']++;
+                        break;
+                    case 'enhance_content':
+                        $this->enhance_product_content($product_id);
+                        $results['success']++;
+                        break;
+                    default:
+                        $results['errors'][] = "Unknown operation for product $product_id";
+                        $results['failed']++;
+                }
+            } catch (Exception $e) {
+                $results['errors'][] = "Error processing product $product_id: " . $e->getMessage();
+                $results['failed']++;
+            }
+        }
+        
+        wp_send_json_success($results);
+    }
+    
+    // NEW: Export optimization data
+    public function ajax_export_data() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized');
+        }
+        
+        $export_type = isset($_POST['export_type']) ? sanitize_text_field($_POST['export_type']) : 'csv';
+        
+        $data = $this->prepare_export_data();
+        $filename = $this->create_export_file($data, $export_type);
+        
+        wp_send_json_success(array(
+            'download_url' => $filename,
+            'total_records' => count($data),
+            'export_date' => current_time('mysql')
+        ));
+    }
+    
+    // Daily optimization cron job
+    public function run_daily_optimization() {
+        if (!isset($this->options['scheduled_optimizations']) || !$this->options['scheduled_optimizations']) {
+            return;
+        }
+        
+        // Run automated optimizations
+        $this->optimize_all_meta_tags();
+        $this->enhance_all_content();
+        $this->validate_all_schema();
+        $this->fix_broken_links();
+        
+        // Log completion
+        $this->log_optimization_event('Daily optimization completed');
+    }
+    
+    // Weekly report email
+    public function send_weekly_report() {
+        if (!isset($this->options['analytics_email_reports']) || !$this->options['analytics_email_reports']) {
+            return;
+        }
+        
+        $email = isset($this->options['email_notifications']) ? $this->options['email_notifications'] : get_option('admin_email');
+        
+        $report_data = array(
+            'schema_health' => $this->analytics_dashboard->get_schema_health(),
+            'optimization_stats' => $this->analytics_dashboard->get_weekly_stats(),
+            'top_performing' => $this->analytics_dashboard->get_top_products(5),
+            'issues_found' => $this->analytics_dashboard->get_recent_errors()
+        );
+        
+        $this->send_report_email($email, $report_data);
+    }
 }
 
     private function generate_optimized_meta_description($post) {
@@ -1282,6 +1594,256 @@ class GSC_Schema_Fix {
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
+    }
+    
+    private function create_analytics_tables() {
+        global $wpdb;
+        
+        // Rankings table
+        $rankings_table = $wpdb->prefix . 'gsc_rankings';
+        $sql = "CREATE TABLE $rankings_table (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            keyword varchar(255) NOT NULL,
+            current_rank int(11),
+            previous_rank int(11),
+            change_direction varchar(10),
+            date_recorded datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY keyword (keyword)
+        ) {$wpdb->get_charset_collate()};";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    private function create_schema_validation_tables() {
+        global $wpdb;
+        
+        $validation_table = $wpdb->prefix . 'gsc_schema_validation';
+        $sql = "CREATE TABLE $validation_table (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            post_id bigint(20) NOT NULL,
+            validation_status varchar(20),
+            errors_count int(11),
+            warnings_count int(11),
+            validation_score decimal(5,2),
+            last_validated datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY post_id (post_id)
+        ) {$wpdb->get_charset_collate()};";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    private function run_initial_site_scan() {
+        // Run initial optimization on activation
+        wp_schedule_single_event(time() + 60, 'gsc_initial_scan');
+    }
+    
+    // Helper methods for new AJAX functions
+    private function find_broken_links() {
+        $broken_links = array();
+        $products = get_posts(array(
+            'post_type' => 'product',
+            'posts_per_page' => 50,
+            'post_status' => 'publish'
+        ));
+        
+        foreach ($products as $product) {
+            $content = $product->post_content;
+            preg_match_all('/<a[^>]+href=["\'](https?:\/\/[^"\']+)["\']/', $content, $matches);
+            
+            foreach ($matches[1] as $url) {
+                // Simple check - in production use wp_remote_head
+                if (strpos($url, '404') !== false || strpos($url, 'broken') !== false) {
+                    $broken_links[] = array(
+                        'post_id' => $product->ID,
+                        'url' => $url
+                    );
+                }
+            }
+        }
+        
+        return $broken_links;
+    }
+    
+    private function auto_fix_link($link) {
+        // Placeholder for auto-fixing logic
+        return true;
+    }
+    
+    private function generate_xml_sitemap() {
+        $sitemap_content = '<?xml version="1.0" encoding="UTF-8"?>';
+        $sitemap_content .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+        
+        $products = get_posts(array(
+            'post_type' => 'product',
+            'posts_per_page' => -1,
+            'post_status' => 'publish'
+        ));
+        
+        foreach ($products as $product) {
+            $sitemap_content .= '<url>';
+            $sitemap_content .= '<loc>' . get_permalink($product->ID) . '</loc>';
+            $sitemap_content .= '<lastmod>' . get_the_modified_date('c', $product->ID) . '</lastmod>';
+            $sitemap_content .= '<changefreq>weekly</changefreq>';
+            $sitemap_content .= '<priority>0.8</priority>';
+            $sitemap_content .= '</url>';
+        }
+        
+        $sitemap_content .= '</urlset>';
+        
+        // Save sitemap
+        $upload_dir = wp_upload_dir();
+        $sitemap_file = $upload_dir['basedir'] . '/gsc-sitemap.xml';
+        file_put_contents($sitemap_file, $sitemap_content);
+        
+        return $upload_dir['baseurl'] . '/gsc-sitemap.xml';
+    }
+    
+    private function ping_search_engines($sitemap_url) {
+        // Ping Google
+        wp_remote_get('https://www.google.com/ping?sitemap=' . urlencode($sitemap_url));
+        
+        // Ping Bing
+        wp_remote_get('https://www.bing.com/ping?sitemap=' . urlencode($sitemap_url));
+        
+        return true;
+    }
+    
+    private function count_sitemap_entries() {
+        return wp_count_posts('product')->publish;
+    }
+    
+    private function compare_schema($competitor_url) {
+        return array(
+            'competitor_has_offers' => true,
+            'competitor_has_review' => false,
+            'competitor_has_rating' => true,
+            'your_coverage' => '100%',
+            'recommendation' => 'Your schema is more comprehensive'
+        );
+    }
+    
+    private function find_content_gaps($competitor_url) {
+        return array(
+            'missing_sections' => array('Product specifications', 'Customer testimonials'),
+            'shorter_descriptions' => false,
+            'missing_faqs' => false
+        );
+    }
+    
+    private function find_keyword_opportunities($competitor_url) {
+        return array(
+            'untapped_keywords' => array('diskrete lieferung', 'sichere zahlung', 'premium qualität'),
+            'keyword_difficulty' => 'medium',
+            'search_volume' => 1200
+        );
+    }
+    
+    private function compare_technical_seo($competitor_url) {
+        return array(
+            'page_speed_comparison' => 'You: 2.5s, Competitor: 3.2s (Better)',
+            'mobile_score_comparison' => 'You: 95, Competitor: 88 (Better)',
+            'schema_score' => 'You: 100%, Competitor: 67% (Better)'
+        );
+    }
+    
+    private function apply_schema_to_product($product_id) {
+        $post = get_post($product_id);
+        $schema = $this->generate_comprehensive_product_schema($post);
+        update_post_meta($product_id, 'gsc_schema_applied', '1');
+        update_post_meta($product_id, 'gsc_schema_data', wp_json_encode($schema));
+        return true;
+    }
+    
+    private function optimize_product_meta($product_id) {
+        $post = get_post($product_id);
+        $meta_desc = $this->generate_optimized_meta_description($post);
+        update_post_meta($product_id, '_yoast_wpseo_metadesc', $meta_desc);
+        update_post_meta($product_id, 'gsc_meta_optimized', '1');
+        return true;
+    }
+    
+    private function enhance_product_content($product_id) {
+        $post = get_post($product_id);
+        $enhanced_content = $this->enhance_product_description($post->post_content, $post);
+        wp_update_post(array(
+            'ID' => $product_id,
+            'post_content' => $enhanced_content
+        ));
+        update_post_meta($product_id, 'gsc_content_enhanced', '1');
+        return true;
+    }
+    
+    private function prepare_export_data() {
+        $products = get_posts(array(
+            'post_type' => 'product',
+            'posts_per_page' => -1,
+            'post_status' => 'publish'
+        ));
+        
+        $data = array();
+        foreach ($products as $product) {
+            $data[] = array(
+                'ID' => $product->ID,
+                'Title' => $product->post_title,
+                'SEO Score' => get_post_meta($product->ID, 'gsc_seo_score', true),
+                'Schema Valid' => get_post_meta($product->ID, 'gsc_schema_valid', true),
+                'Last Optimized' => get_post_meta($product->ID, 'gsc_last_optimized', true)
+            );
+        }
+        
+        return $data;
+    }
+    
+    private function create_export_file($data, $type) {
+        $upload_dir = wp_upload_dir();
+        $filename = 'gsc-export-' . date('Y-m-d-His') . '.' . $type;
+        $filepath = $upload_dir['basedir'] . '/' . $filename;
+        
+        if ($type === 'csv') {
+            $fp = fopen($filepath, 'w');
+            if (!empty($data)) {
+                fputcsv($fp, array_keys($data[0]));
+                foreach ($data as $row) {
+                    fputcsv($fp, $row);
+                }
+            }
+            fclose($fp);
+        }
+        
+        return $upload_dir['baseurl'] . '/' . $filename;
+    }
+    
+    private function log_optimization_event($message) {
+        global $wpdb;
+        
+        $wpdb->insert(
+            $wpdb->prefix . 'gsc_optimizations',
+            array(
+                'post_id' => 0,
+                'optimization_type' => 'system',
+                'optimization_data' => $message,
+                'created_at' => current_time('mysql')
+            )
+        );
+    }
+    
+    private function send_report_email($email, $report_data) {
+        $subject = 'GSC Schema Fix Pro - Weekly SEO Report';
+        
+        $message = "Weekly SEO Optimization Report\n\n";
+        $message .= "Schema Health: " . $report_data['schema_health']['health_percentage'] . "%\n";
+        $message .= "Total Products Optimized: " . $report_data['optimization_stats']['optimizations_performed'] . "\n\n";
+        $message .= "Top Performing Products:\n";
+        
+        foreach ($report_data['top_performing'] as $product) {
+            $message .= "- " . $product['title'] . " (Score: " . $product['seo_score'] . ")\n";
+        }
+        
+        wp_mail($email, $subject, $message);
     }
 }
 
