@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, automatic GSC error detection and fixing, and analytics dashboard.
- * Version: 4.0.6
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, automatic GSC error detection and fixing, analytics dashboard, and AI search optimization (Google AI Overview).
+ * Version: 4.0.7
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.6');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.7');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -40,6 +40,8 @@ class GSC_Schema_Fix {
         add_action('wp_head', array($this, 'add_schema_markup'), 99);
         add_action('wp_head', array($this, 'add_faq_schema'), 100); // v4.0.3
         add_action('wp_head', array($this, 'add_keywords_meta'), 2); // v4.0.4
+        add_action('wp_head', array($this, 'add_howto_schema'), 101); // v4.0.7
+        add_action('wp_head', array($this, 'add_entity_markup'), 102); // v4.0.7
         add_action('wp_head', array($this, 'optimize_meta_tags'), 1); // v3.0.0
         add_action('the_content', array($this, 'enhance_content')); // v3.0.0
         add_action('wp_footer', array($this, 'add_performance_optimizations')); // v3.0.0
@@ -415,6 +417,117 @@ class GSC_Schema_Fix {
     }
     
     /**
+     * v4.0.7 - Detect HowTo content from post
+     */
+    private function detect_howto_content($post) {
+        $content = $post->post_content;
+        $steps = array();
+        
+        // Look for numbered lists or step patterns
+        // Pattern 1: Ordered lists <ol><li>
+        if (preg_match_all('/<ol[^>]*>(.*?)<\/ol>/is', $content, $ol_matches)) {
+            foreach ($ol_matches[1] as $ol_content) {
+                if (preg_match_all('/<li[^>]*>(.*?)<\/li>/is', $ol_content, $li_matches)) {
+                    foreach ($li_matches[1] as $index => $li_content) {
+                        $step_text = wp_strip_all_tags($li_content);
+                        if (strlen($step_text) > 10) { // Minimum length for valid step
+                            $steps[] = array(
+                                'name' => 'Step ' . ($index + 1),
+                                'text' => trim($step_text)
+                            );
+                        }
+                    }
+                    if (count($steps) >= 3) { // At least 3 steps for valid HowTo
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Pattern 2: Step headings (Step 1:, Schritt 1:, etc.)
+        if (empty($steps)) {
+            $step_pattern = '/(?:<h[2-6][^>]*>|^|\n)\s*(?:Step|Schritt|Étape)\s*(\d+)[:\.]?\s*([^\n<]+)(?:<\/h[2-6]>)?[\s\S]*?<p>([^<]+)<\/p>/i';
+            if (preg_match_all($step_pattern, $content, $step_matches, PREG_SET_ORDER)) {
+                foreach ($step_matches as $match) {
+                    $steps[] = array(
+                        'name' => trim($match[2]),
+                        'text' => wp_strip_all_tags(trim($match[3]))
+                    );
+                }
+            }
+        }
+        
+        if (count($steps) < 3) {
+            return null; // Not enough steps for valid HowTo
+        }
+        
+        // Build HowTo data
+        $howto = array(
+            'name' => $post->post_title,
+            'description' => wp_trim_words($post->post_excerpt ?: $post->post_content, 30, '...'),
+            'steps' => array_slice($steps, 0, 20) // Max 20 steps
+        );
+        
+        // Try to get featured image
+        if (has_post_thumbnail($post->ID)) {
+            $howto['image'] = get_the_post_thumbnail_url($post->ID, 'full');
+        }
+        
+        return $howto;
+    }
+    
+    /**
+     * v4.0.7 - Generate breadcrumb structure
+     */
+    private function generate_breadcrumbs() {
+        $breadcrumbs = array();
+        $position = 1;
+        
+        // Home
+        $breadcrumbs[] = array(
+            '@type' => 'ListItem',
+            'position' => $position++,
+            'name' => 'Home',
+            'item' => home_url()
+        );
+        
+        // For products or posts, add category/taxonomy
+        if (is_singular('product')) {
+            $terms = get_the_terms(get_the_ID(), 'product_cat');
+            if ($terms && !is_wp_error($terms)) {
+                $term = array_shift($terms);
+                $breadcrumbs[] = array(
+                    '@type' => 'ListItem',
+                    'position' => $position++,
+                    'name' => $term->name,
+                    'item' => get_term_link($term)
+                );
+            }
+        } elseif (is_singular('post')) {
+            $categories = get_the_category();
+            if (!empty($categories)) {
+                $category = $categories[0];
+                $breadcrumbs[] = array(
+                    '@type' => 'ListItem',
+                    'position' => $position++,
+                    'name' => $category->name,
+                    'item' => get_category_link($category->term_id)
+                );
+            }
+        }
+        
+        // Current page
+        $breadcrumbs[] = array(
+            '@type' => 'ListItem',
+            'position' => $position,
+            'name' => get_the_title(),
+            'item' => get_permalink()
+        );
+        
+        return $breadcrumbs;
+    }
+    
+    /**
      * v4.0.3 - Add FAQ schema markup
      */
     public function add_faq_schema() {
@@ -543,6 +656,139 @@ class GSC_Schema_Fix {
         
         // Output keywords meta tag
         echo '<meta name="keywords" content="' . esc_attr($keyword_list) . '">' . "\n";
+    }
+    
+    /**
+     * v4.0.7 - Add HowTo schema for AI Overview optimization
+     */
+    public function add_howto_schema() {
+        if (empty($this->options['enable_howto_schema']) || !is_singular()) {
+            return;
+        }
+        
+        global $post;
+        
+        // Detect HowTo content patterns
+        $howto = $this->detect_howto_content($post);
+        
+        if (empty($howto)) {
+            return;
+        }
+        
+        // Generate HowTo schema
+        $schema = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'HowTo',
+            'name' => $howto['name'],
+            'description' => $howto['description'],
+            'step' => array()
+        );
+        
+        // Add image if available
+        if (!empty($howto['image'])) {
+            $schema['image'] = $howto['image'];
+        }
+        
+        // Add total time if available
+        if (!empty($howto['totalTime'])) {
+            $schema['totalTime'] = $howto['totalTime'];
+        }
+        
+        // Add steps
+        foreach ($howto['steps'] as $index => $step) {
+            $step_schema = array(
+                '@type' => 'HowToStep',
+                'name' => $step['name'],
+                'text' => $step['text'],
+                'position' => $index + 1
+            );
+            
+            if (!empty($step['image'])) {
+                $step_schema['image'] = $step['image'];
+            }
+            
+            $schema['step'][] = $step_schema;
+        }
+        
+        // Output HowTo schema
+        echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+    }
+    
+    /**
+     * v4.0.7 - Add enhanced entity markup for AI Overview
+     */
+    public function add_entity_markup() {
+        if (empty($this->options['enable_entity_markup'])) {
+            return;
+        }
+        
+        // Add Organization schema for homepage or all pages
+        if (is_front_page() || !empty($this->options['entity_markup_all_pages'])) {
+            $schema = array(
+                '@context' => 'https://schema.org',
+                '@type' => 'Organization',
+                'name' => get_bloginfo('name'),
+                'url' => home_url(),
+                'logo' => array(
+                    '@type' => 'ImageObject',
+                    'url' => get_site_icon_url()
+                )
+            );
+            
+            // Add social profiles if configured
+            if (!empty($this->options['entity_social_profiles'])) {
+                $profiles = array_filter(array_map('trim', explode("\n", $this->options['entity_social_profiles'])));
+                if (!empty($profiles)) {
+                    $schema['sameAs'] = $profiles;
+                }
+            }
+            
+            // Add contact information if configured
+            if (!empty($this->options['entity_contact_type']) && !empty($this->options['entity_contact_phone'])) {
+                $schema['contactPoint'] = array(
+                    '@type' => 'ContactPoint',
+                    'telephone' => $this->options['entity_contact_phone'],
+                    'contactType' => $this->options['entity_contact_type']
+                );
+            }
+            
+            echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+        }
+        
+        // Add WebSite schema with search action for better AI understanding
+        if (is_front_page()) {
+            $website_schema = array(
+                '@context' => 'https://schema.org',
+                '@type' => 'WebSite',
+                'name' => get_bloginfo('name'),
+                'url' => home_url(),
+                'potentialAction' => array(
+                    '@type' => 'SearchAction',
+                    'target' => array(
+                        '@type' => 'EntryPoint',
+                        'urlTemplate' => home_url('/?s={search_term_string}')
+                    ),
+                    'query-input' => 'required name=search_term_string'
+                )
+            );
+            
+            echo '<script type="application/ld+json">' . wp_json_encode($website_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+        }
+        
+        // Add BreadcrumbList for better navigation understanding
+        if (!is_front_page() && !empty($this->options['entity_breadcrumb'])) {
+            $breadcrumbs = $this->generate_breadcrumbs();
+            
+            if (!empty($breadcrumbs)) {
+                $breadcrumb_schema = array(
+                    '@context' => 'https://schema.org',
+                    '@type' => 'BreadcrumbList',
+                    'itemListElement' => $breadcrumbs
+                );
+                
+                echo '<script type="application/ld+json">' . wp_json_encode($breadcrumb_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+            }
+        }
     }
     
     /**
@@ -1286,6 +1532,23 @@ class GSC_Schema_Fix {
      * Admin page - v3.0.1 Enhanced with better UI and working test tool
      */
     public function admin_page() {
+        // Handle AI settings form submission
+        if (isset($_POST['gsc_ai_settings_nonce']) && wp_verify_nonce($_POST['gsc_ai_settings_nonce'], 'gsc_ai_settings_action')) {
+            $options = get_option('gsc_schema_fix_options', array());
+            
+            // Update AI settings
+            $options['entity_markup_all_pages'] = isset($_POST['entity_markup_all_pages']) ? 1 : 0;
+            $options['entity_breadcrumb'] = isset($_POST['entity_breadcrumb']) ? 1 : 0;
+            $options['entity_social_profiles'] = isset($_POST['entity_social_profiles']) ? sanitize_textarea_field($_POST['entity_social_profiles']) : '';
+            $options['entity_contact_type'] = isset($_POST['entity_contact_type']) ? sanitize_text_field($_POST['entity_contact_type']) : '';
+            $options['entity_contact_phone'] = isset($_POST['entity_contact_phone']) ? sanitize_text_field($_POST['entity_contact_phone']) : '';
+            
+            update_option('gsc_schema_fix_options', $options);
+            $this->options = $options;
+            
+            echo '<div class="notice notice-success is-dismissible"><p><strong>✅ AI Optimization settings saved successfully!</strong></p></div>';
+        }
+        
         ?>
         <div class="wrap gsc-admin-wrap">
             <h1><?php _e('GSC Schema Fix - Settings', 'gsc-schema-fix'); ?></h1>
@@ -1544,6 +1807,40 @@ class GSC_Schema_Fix {
                                 </label>
                             </div>
                         </div>
+
+                        <!-- HowTo Schema (AI Optimization) -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-list-view"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('HowTo Schema (AI)', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Auto-detect step-by-step guides for AI Overview', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_howto_schema" value="1" <?php checked(!empty($this->options['enable_howto_schema'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Entity Markup (AI Optimization) -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-networking"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Entity Markup (AI)', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Enhanced organization and breadcrumb markup for AI', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_entity_markup" value="1" <?php checked(!empty($this->options['enable_entity_markup'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="gsc-save-section">
@@ -1595,6 +1892,75 @@ class GSC_Schema_Fix {
                         </td>
                     </tr>
                 </table>
+            </div>
+            
+            <div class="gsc-admin-section">
+                <div class="gsc-section-header">
+                    <h2><span class="dashicons dashicons-superhero"></span> <?php _e('AI Overview Optimization Settings', 'gsc-schema-fix'); ?></h2>
+                    <p><?php _e('Configure entity markup and AI-specific features to improve visibility in Google AI Overview and AI-powered search results.', 'gsc-schema-fix'); ?></p>
+                </div>
+                
+                <form method="post" action="" id="gsc-ai-settings-form">
+                    <?php wp_nonce_field('gsc_ai_settings_action', 'gsc_ai_settings_nonce'); ?>
+                    
+                    <table class="form-table gsc-settings-table">
+                        <tr>
+                            <th><?php _e('Entity Markup Scope', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="entity_markup_all_pages" value="1" <?php checked(!empty($this->options['entity_markup_all_pages'])); ?>>
+                                    <?php _e('Add Organization schema on all pages (recommended for AI)', 'gsc-schema-fix'); ?>
+                                </label>
+                                <p class="description"><?php _e('When enabled, organization schema appears on every page to strengthen AI understanding of your brand.', 'gsc-schema-fix'); ?></p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th><?php _e('Enable Breadcrumbs', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="entity_breadcrumb" value="1" <?php checked(!empty($this->options['entity_breadcrumb'])); ?>>
+                                    <?php _e('Generate breadcrumb schema for navigation (AI-friendly)', 'gsc-schema-fix'); ?>
+                                </label>
+                                <p class="description"><?php _e('Helps AI understand your site structure and content hierarchy.', 'gsc-schema-fix'); ?></p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th><?php _e('Social Profiles', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <textarea name="entity_social_profiles" rows="5" class="large-text" placeholder="https://facebook.com/yourpage&#10;https://twitter.com/yourhandle&#10;https://linkedin.com/company/yourcompany"><?php echo esc_textarea(!empty($this->options['entity_social_profiles']) ? $this->options['entity_social_profiles'] : ''); ?></textarea>
+                                <p class="description"><?php _e('Enter your social media profile URLs (one per line). AI uses these to verify your brand identity.', 'gsc-schema-fix'); ?></p>
+                            </td>
+                        </tr>
+                        
+                        <tr>
+                            <th><?php _e('Contact Information', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <p>
+                                    <label><?php _e('Contact Type:', 'gsc-schema-fix'); ?></label>
+                                    <select name="entity_contact_type">
+                                        <option value=""><?php _e('None', 'gsc-schema-fix'); ?></option>
+                                        <option value="customer service" <?php selected(!empty($this->options['entity_contact_type']) ? $this->options['entity_contact_type'] : '', 'customer service'); ?>><?php _e('Customer Service', 'gsc-schema-fix'); ?></option>
+                                        <option value="technical support" <?php selected(!empty($this->options['entity_contact_type']) ? $this->options['entity_contact_type'] : '', 'technical support'); ?>><?php _e('Technical Support', 'gsc-schema-fix'); ?></option>
+                                        <option value="sales" <?php selected(!empty($this->options['entity_contact_type']) ? $this->options['entity_contact_type'] : '', 'sales'); ?>><?php _e('Sales', 'gsc-schema-fix'); ?></option>
+                                    </select>
+                                </p>
+                                <p>
+                                    <label><?php _e('Phone Number:', 'gsc-schema-fix'); ?></label>
+                                    <input type="text" name="entity_contact_phone" value="<?php echo esc_attr(!empty($this->options['entity_contact_phone']) ? $this->options['entity_contact_phone'] : ''); ?>" class="regular-text" placeholder="+49-123-456789">
+                                </p>
+                                <p class="description"><?php _e('AI can display this contact information in search results.', 'gsc-schema-fix'); ?></p>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <p class="submit">
+                        <button type="submit" class="button button-primary button-large">
+                            <span class="dashicons dashicons-saved"></span> <?php _e('Save AI Settings', 'gsc-schema-fix'); ?>
+                        </button>
+                    </p>
+                </form>
             </div>
             
             <div class="gsc-admin-section">
@@ -1690,13 +2056,28 @@ class GSC_Schema_Fix {
             'enable_faq_schema',
             'enable_keyword_extraction',
             'enable_error_scanning',
-            'enable_auto_fix'
+            'enable_auto_fix',
+            'enable_howto_schema',
+            'enable_entity_markup',
+            'entity_markup_all_pages',
+            'entity_breadcrumb'
         );
         
         foreach ($toggles as $toggle) {
             if (isset($_POST[$toggle])) {
                 $options[$toggle] = intval($_POST[$toggle]);
             }
+        }
+        
+        // Update AI settings text fields
+        if (isset($_POST['entity_social_profiles'])) {
+            $options['entity_social_profiles'] = sanitize_textarea_field($_POST['entity_social_profiles']);
+        }
+        if (isset($_POST['entity_contact_type'])) {
+            $options['entity_contact_type'] = sanitize_text_field($_POST['entity_contact_type']);
+        }
+        if (isset($_POST['entity_contact_phone'])) {
+            $options['entity_contact_phone'] = sanitize_text_field($_POST['entity_contact_phone']);
         }
         
         // Update option
