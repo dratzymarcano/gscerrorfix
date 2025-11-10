@@ -232,10 +232,10 @@ jQuery(document).ready(function($) {
             formData[$(this).attr('name')] = $(this).is(':checked') ? 1 : 0;
         });
         
-        // Show saving indicator
-        $('#gsc-settings-message').html(
-            '<div class="notice notice-info inline"><p>💾 Saving settings...</p></div>'
-        );
+        // Show global saving indicator
+        $('#gsc-global-status').removeClass('gsc-status-success gsc-status-error').addClass('gsc-status-saving').show();
+        $('#gsc-global-status .gsc-status-text').text('Saving changes...');
+        $('#gsc-global-status .dashicons').removeClass('dashicons-saved dashicons-no').addClass('dashicons-update');
         
         $.ajax({
             url: gscAjax.ajax_url,
@@ -243,26 +243,32 @@ jQuery(document).ready(function($) {
             data: formData,
             success: function(response) {
                 if (response.success) {
-                    $('#gsc-settings-message').html(
-                        '<div class="notice notice-success inline is-dismissible"><p>✅ ' + response.data.message + '</p></div>'
-                    );
+                    // Show success status
+                    $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-success');
+                    $('#gsc-global-status .gsc-status-text').text('✓ All changes saved');
+                    $('#gsc-global-status .dashicons').removeClass('dashicons-update').addClass('dashicons-saved');
                     
-                    // Auto-dismiss after 3 seconds
+                    // Auto-hide after 5 seconds
                     setTimeout(function() {
-                        $('#gsc-settings-message').fadeOut(function() {
-                            $(this).html('').show();
-                        });
-                    }, 3000);
+                        $('#gsc-global-status').fadeOut();
+                    }, 5000);
+                    
+                    // Reload analytics if error scanning toggle changed
+                    if (formData.enable_error_scanning !== undefined || formData.enable_auto_fix !== undefined) {
+                        if ($('#gsc-analytics-dashboard').length) {
+                            loadAnalytics();
+                        }
+                    }
                 } else {
-                    $('#gsc-settings-message').html(
-                        '<div class="notice notice-error inline"><p>❌ Error: ' + response.data + '</p></div>'
-                    );
+                    $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-error');
+                    $('#gsc-global-status .gsc-status-text').text('✗ Error saving: ' + response.data);
+                    $('#gsc-global-status .dashicons').removeClass('dashicons-update').addClass('dashicons-no');
                 }
             },
             error: function() {
-                $('#gsc-settings-message').html(
-                    '<div class="notice notice-error inline"><p>❌ Failed to save settings. Please try again.</p></div>'
-                );
+                $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-error');
+                $('#gsc-global-status .gsc-status-text').text('✗ Failed to save settings');
+                $('#gsc-global-status .dashicons').removeClass('dashicons-update').addClass('dashicons-no');
             }
         });
     });
@@ -420,13 +426,6 @@ jQuery(document).ready(function($) {
         return progressHtml;
     }
     
-    // Warn before leaving if changes not saved
-    $(window).on('beforeunload', function(e) {
-        if (formChanged) {
-            return 'You have unsaved changes. Are you sure you want to leave?';
-        }
-    });
-});    
     // v4.0.5 - GSC Error Scanning
     $('#gsc-scan-errors').on('click', function(e) {
         e.preventDefault();
@@ -552,6 +551,16 @@ jQuery(document).ready(function($) {
                     
                     $('#gsc-error-results').prepend(html);
                     
+                    // Reload analytics to show updated error count
+                    if ($('#gsc-analytics-dashboard').length) {
+                        loadAnalytics();
+                    }
+                    
+                    // Show global success status
+                    $('#gsc-global-status').removeClass('gsc-status-saving gsc-status-error').addClass('gsc-status-success').show();
+                    $('#gsc-global-status .gsc-status-text').text('✓ Errors fixed successfully');
+                    $('#gsc-global-status .dashicons').removeClass('dashicons-update dashicons-no').addClass('dashicons-saved');
+                    
                     // Scroll to top
                     $('html, body').animate({
                         scrollTop: $('#gsc-error-results').offset().top - 100
@@ -571,3 +580,4 @@ jQuery(document).ready(function($) {
             }
         });
     });
+});

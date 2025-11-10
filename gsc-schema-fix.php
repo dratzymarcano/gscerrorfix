@@ -1290,6 +1290,12 @@ class GSC_Schema_Fix {
             <h1><?php _e('GSC Schema Fix - Settings', 'gsc-schema-fix'); ?></h1>
             <p class="gsc-version"><?php _e('Version', 'gsc-schema-fix'); ?>: <strong><?php echo GSC_SCHEMA_FIX_VERSION; ?></strong></p>
             
+            <!-- Global Save Status Indicator -->
+            <div id="gsc-global-status" class="gsc-global-status" style="display: none;">
+                <span class="dashicons dashicons-saved"></span>
+                <span class="gsc-status-text">All changes saved</span>
+            </div>
+            
             <div class="gsc-admin-section">
                 <h2><?php _e('Analytics Dashboard', 'gsc-schema-fix'); ?></h2>
                 <p><?php _e('Schema performance metrics and coverage statistics.', 'gsc-schema-fix'); ?></p>
