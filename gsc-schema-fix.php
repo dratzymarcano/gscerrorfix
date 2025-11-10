@@ -1379,7 +1379,7 @@ class GSC_Schema_Fix {
             
             <div class="gsc-admin-section">
                 <h2><?php _e('Settings', 'gsc-schema-fix'); ?></h2>
-                <p><?php _e('Toggle features on/off. Changes are saved automatically.', 'gsc-schema-fix'); ?></p>
+                <p><?php _e('Configure plugin features. Click "Save All Settings" to apply changes.', 'gsc-schema-fix'); ?></p>
                 
                 <form id="gsc-settings-form">
                     <table class="form-table gsc-settings-table">
@@ -1489,6 +1489,12 @@ class GSC_Schema_Fix {
                             </td>
                         </tr>
                     </table>
+                    
+                    <p class="submit">
+                        <button type="button" id="gsc-save-all-settings" class="button button-primary button-hero">
+                            <span class="dashicons dashicons-saved"></span> <?php _e('Save All Settings', 'gsc-schema-fix'); ?>
+                        </button>
+                    </p>
                     
                     <div id="gsc-settings-message"></div>
                 </form>

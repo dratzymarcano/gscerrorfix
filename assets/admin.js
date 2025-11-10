@@ -219,9 +219,21 @@ jQuery(document).ready(function($) {
         });
     });
     
-    // v4.0.2.1 - Handle toggle switches
+    // Track if settings have changed
+    var settingsChanged = false;
+    
+    // v4.0.6.1 - Track toggle changes (no auto-save)
     $('#gsc-settings-form input[type="checkbox"]').on('change', function() {
-        var checkbox = $(this);
+        settingsChanged = true;
+        // Show visual indicator that changes are pending
+        $('#gsc-save-all-settings').addClass('button-primary-blink');
+    });
+    
+    // v4.0.6.1 - Manual Save All Settings button
+    $('#gsc-save-all-settings').on('click', function(e) {
+        e.preventDefault();
+        
+        var button = $(this);
         var formData = {
             action: 'gsc_save_settings',
             nonce: gscAjax.nonce
@@ -232,9 +244,13 @@ jQuery(document).ready(function($) {
             formData[$(this).attr('name')] = $(this).is(':checked') ? 1 : 0;
         });
         
+        // Disable button and show saving state
+        button.prop('disabled', true);
+        button.html('<span class="dashicons dashicons-update dashicons-spin"></span> Saving...');
+        
         // Show global saving indicator
         $('#gsc-global-status').removeClass('gsc-status-success gsc-status-error').addClass('gsc-status-saving').show();
-        $('#gsc-global-status .gsc-status-text').text('Saving changes...');
+        $('#gsc-global-status .gsc-status-text').text('Saving all settings...');
         $('#gsc-global-status .dashicons').removeClass('dashicons-saved dashicons-no').addClass('dashicons-update');
         
         $.ajax({
@@ -242,35 +258,65 @@ jQuery(document).ready(function($) {
             type: 'POST',
             data: formData,
             success: function(response) {
+                button.prop('disabled', false);
+                button.html('<span class="dashicons dashicons-saved"></span> Save All Settings');
+                button.removeClass('button-primary-blink');
+                
                 if (response.success) {
+                    settingsChanged = false;
+                    
                     // Show success status
                     $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-success');
-                    $('#gsc-global-status .gsc-status-text').text('✓ All changes saved');
+                    $('#gsc-global-status .gsc-status-text').text('✓ All settings saved successfully!');
                     $('#gsc-global-status .dashicons').removeClass('dashicons-update').addClass('dashicons-saved');
                     
-                    // Auto-hide after 5 seconds
+                    // Show inline success message
+                    $('#gsc-settings-message').html(
+                        '<div class="notice notice-success inline is-dismissible"><p><strong>✅ Settings saved successfully!</strong></p></div>'
+                    );
+                    
+                    // Auto-hide status after 5 seconds
                     setTimeout(function() {
                         $('#gsc-global-status').fadeOut();
+                        $('#gsc-settings-message').fadeOut(function() {
+                            $(this).html('').show();
+                        });
                     }, 5000);
                     
-                    // Reload analytics if error scanning toggle changed
-                    if (formData.enable_error_scanning !== undefined || formData.enable_auto_fix !== undefined) {
-                        if ($('#gsc-analytics-dashboard').length) {
-                            loadAnalytics();
-                        }
+                    // Reload analytics
+                    if ($('#gsc-analytics-dashboard').length) {
+                        loadAnalytics();
                     }
                 } else {
                     $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-error');
-                    $('#gsc-global-status .gsc-status-text').text('✗ Error saving: ' + response.data);
+                    $('#gsc-global-status .gsc-status-text').text('✗ Error saving settings');
                     $('#gsc-global-status .dashicons').removeClass('dashicons-update').addClass('dashicons-no');
+                    
+                    $('#gsc-settings-message').html(
+                        '<div class="notice notice-error inline"><p><strong>❌ Error:</strong> ' + response.data + '</p></div>'
+                    );
                 }
             },
             error: function() {
+                button.prop('disabled', false);
+                button.html('<span class="dashicons dashicons-saved"></span> Save All Settings');
+                
                 $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-error');
                 $('#gsc-global-status .gsc-status-text').text('✗ Failed to save settings');
                 $('#gsc-global-status .dashicons').removeClass('dashicons-update').addClass('dashicons-no');
+                
+                $('#gsc-settings-message').html(
+                    '<div class="notice notice-error inline"><p><strong>❌ Failed to save settings.</strong> Please try again.</p></div>'
+                );
             }
         });
+    });
+    
+    // Warn before leaving if settings changed
+    $(window).on('beforeunload', function(e) {
+        if (settingsChanged) {
+            return 'You have unsaved settings changes. Are you sure you want to leave?';
+        }
     });
     
     // Form validation

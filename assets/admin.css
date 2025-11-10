@@ -811,3 +811,39 @@
         justify-content: center;
     }
 }
+
+/* Save All Settings Button */
+#gsc-save-all-settings {
+    font-size: 16px;
+    padding: 10px 30px;
+    height: auto;
+    margin-top: 10px;
+}
+
+#gsc-save-all-settings .dashicons {
+    margin-right: 5px;
+}
+
+.dashicons-spin {
+    animation: spin 1s linear infinite;
+}
+
+.button-primary-blink {
+    animation: blink-button 1.5s ease-in-out infinite;
+    box-shadow: 0 0 0 4px rgba(33, 113, 177, 0.2);
+}
+
+@keyframes blink-button {
+    0%, 100% {
+        box-shadow: 0 0 0 4px rgba(33, 113, 177, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(33, 113, 177, 0.4);
+    }
+}
+
+/* Inline notice styles */
+.notice.inline {
+    margin: 15px 0 5px;
+    padding: 10px 15px;
+}
