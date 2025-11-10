@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, and FAQ schema detection.
- * Version: 4.0.3
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, and keyword extraction.
+ * Version: 4.0.4
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.3');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.4');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -39,6 +39,7 @@ class GSC_Schema_Fix {
         add_action('init', array($this, 'init'));
         add_action('wp_head', array($this, 'add_schema_markup'), 99);
         add_action('wp_head', array($this, 'add_faq_schema'), 100); // v4.0.3
+        add_action('wp_head', array($this, 'add_keywords_meta'), 2); // v4.0.4
         add_action('wp_head', array($this, 'optimize_meta_tags'), 1); // v3.0.0
         add_action('the_content', array($this, 'enhance_content')); // v3.0.0
         add_action('wp_footer', array($this, 'add_performance_optimizations')); // v3.0.0
@@ -446,6 +447,98 @@ class GSC_Schema_Fix {
         echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
     }
     
+    /**
+     * v4.0.4 - Extract keywords from content
+     * @param string $content Content to analyze
+     * @param int $max_keywords Maximum number of keywords to return
+     * @return array Keywords with frequency
+     */
+    private function extract_keywords($content, $max_keywords = 10) {
+        // Remove HTML tags
+        $text = wp_strip_all_tags($content);
+        
+        // Convert to lowercase
+        $text = mb_strtolower($text, 'UTF-8');
+        
+        // Remove special characters, keep only letters, numbers, spaces
+        $text = preg_replace('/[^a-z0-9äöüßáéíóúñ\s]/u', ' ', $text);
+        
+        // Common stop words (English and German)
+        $stop_words = array(
+            // English
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be',
+            'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+            'would', 'should', 'could', 'may', 'might', 'can', 'this', 'that',
+            'these', 'those', 'it', 'its', 'they', 'them', 'their', 'we', 'you',
+            'he', 'she', 'him', 'her', 'his', 'our', 'your', 'my', 'me', 'i',
+            'not', 'no', 'yes', 'all', 'any', 'some', 'more', 'very', 'too',
+            'just', 'so', 'than', 'such', 'when', 'where', 'who', 'why', 'how',
+            // German
+            'der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einer',
+            'eines', 'einem', 'einen', 'und', 'oder', 'aber', 'in', 'im', 'auf',
+            'an', 'zu', 'für', 'von', 'mit', 'bei', 'nach', 'vor', 'über',
+            'unter', 'durch', 'bis', 'aus', 'ist', 'sind', 'war', 'waren',
+            'wird', 'werden', 'wurde', 'worden', 'sein', 'haben', 'hat',
+            'hatte', 'hatten', 'kann', 'könnte', 'muss', 'müssen', 'soll',
+            'sollte', 'darf', 'dürfen', 'mag', 'mögen', 'will', 'wollen',
+            'nicht', 'kein', 'keine', 'keinen', 'dieser', 'diese', 'dieses',
+            'jener', 'jene', 'jenes', 'alle', 'alles', 'viele', 'wenige',
+            'mehr', 'weniger', 'sehr', 'auch', 'nur', 'schon', 'noch', 'dann',
+            'wenn', 'wann', 'wo', 'woher', 'wohin', 'wer', 'was', 'wie', 'warum'
+        );
+        
+        // Split into words
+        $words = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+        
+        // Count word frequency
+        $word_freq = array();
+        foreach ($words as $word) {
+            // Skip short words and stop words
+            if (strlen($word) < 3 || in_array($word, $stop_words)) {
+                continue;
+            }
+            
+            if (!isset($word_freq[$word])) {
+                $word_freq[$word] = 0;
+            }
+            $word_freq[$word]++;
+        }
+        
+        // Sort by frequency
+        arsort($word_freq);
+        
+        // Get top keywords
+        $keywords = array_slice($word_freq, 0, $max_keywords, true);
+        
+        return $keywords;
+    }
+    
+    /**
+     * v4.0.4 - Add keywords meta tag
+     */
+    public function add_keywords_meta() {
+        if (empty($this->options['enable_keyword_extraction']) || !is_singular()) {
+            return;
+        }
+        
+        global $post;
+        
+        // Extract keywords from title and content
+        $content = $post->post_title . ' ' . $post->post_content;
+        $keywords = $this->extract_keywords($content, 15);
+        
+        if (empty($keywords)) {
+            return;
+        }
+        
+        // Get top keywords as comma-separated list
+        $keyword_list = implode(', ', array_keys($keywords));
+        
+        // Output keywords meta tag
+        echo '<meta name="keywords" content="' . esc_attr($keyword_list) . '">' . "\n";
+    }
+    
     public function activate() {
         $default_options = array(
             'enable_auto_rating' => 1,
@@ -480,6 +573,8 @@ class GSC_Schema_Fix {
             'enable_schema_validation' => 1,
             // v4.0.3 - FAQ schema
             'enable_faq_schema' => 1,
+            // v4.0.4 - Keyword extraction
+            'enable_keyword_extraction' => 1,
         );
         
         add_option('gsc_schema_fix_options', $default_options);
@@ -923,6 +1018,16 @@ class GSC_Schema_Fix {
                                 <span class="gsc-toggle-label"><?php _e('Automatically detect and add FAQ schema', 'gsc-schema-fix'); ?></span>
                             </td>
                         </tr>
+                        <tr>
+                            <th><?php _e('Keyword Extraction', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_keyword_extraction" value="1" <?php checked(!empty($this->options['enable_keyword_extraction'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Extract and add keywords meta tag', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
                     </table>
                     
                     <div id="gsc-settings-message"></div>
@@ -1034,7 +1139,8 @@ class GSC_Schema_Fix {
             'enable_caching_headers',
             'enable_auto_language_detection',
             'enable_schema_validation',
-            'enable_faq_schema'
+            'enable_faq_schema',
+            'enable_keyword_extraction'
         );
         
         foreach ($toggles as $toggle) {
