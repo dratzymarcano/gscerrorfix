@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, and schema validation.
- * Version: 4.0.2.1
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, and FAQ schema detection.
+ * Version: 4.0.3
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.2.1');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.3');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -38,6 +38,7 @@ class GSC_Schema_Fix {
     public function __construct() {
         add_action('init', array($this, 'init'));
         add_action('wp_head', array($this, 'add_schema_markup'), 99);
+        add_action('wp_head', array($this, 'add_faq_schema'), 100); // v4.0.3
         add_action('wp_head', array($this, 'optimize_meta_tags'), 1); // v3.0.0
         add_action('the_content', array($this, 'enhance_content')); // v3.0.0
         add_action('wp_footer', array($this, 'add_performance_optimizations')); // v3.0.0
@@ -323,6 +324,128 @@ class GSC_Schema_Fix {
         return $validation;
     }
     
+    /**
+     * v4.0.3 - Detect FAQ content from post
+     * @param WP_Post $post Post object
+     * @return array FAQ items (question/answer pairs)
+     */
+    private function detect_faq_content($post) {
+        $faqs = array();
+        $content = $post->post_content;
+        
+        // Method 1: Detect Gutenberg FAQ blocks or custom FAQ shortcodes
+        if (has_blocks($content)) {
+            $blocks = parse_blocks($content);
+            foreach ($blocks as $block) {
+                if ($block['blockName'] === 'core/heading' || $block['blockName'] === 'core/paragraph') {
+                    // Look for Q&A patterns in headings
+                    if (!empty($block['innerHTML'])) {
+                        $text = wp_strip_all_tags($block['innerHTML']);
+                        if (preg_match('/^(Q:|Question:|FAQ:|Frage:)\s*(.+)$/i', $text, $matches)) {
+                            $faqs[] = array('question' => trim($matches[2]), 'answer' => '');
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Method 2: Pattern matching for common FAQ structures
+        // Match patterns like:
+        // Q: Question? A: Answer
+        // Question: Text? Answer: Text
+        // **Question?** Answer text
+        
+        $patterns = array(
+            // Q: Question? A: Answer
+            '/(?:Q:|Question:|Frage:)\s*([^\n?]+\?)\s*(?:A:|Answer:|Antwort:)\s*([^\n]+)/i',
+            // <h3>Question?</h3><p>Answer</p>
+            '/<h[2-6][^>]*>([^<]+\?)<\/h[2-6]>\s*<p>([^<]+)<\/p>/i',
+            // **Question?** Answer
+            '/\*\*([^\*]+\?)\*\*\s*([^\n]+)/i',
+        );
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match_all($pattern, $content, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $question = wp_strip_all_tags(trim($match[1]));
+                    $answer = wp_strip_all_tags(trim($match[2]));
+                    
+                    if (!empty($question) && !empty($answer)) {
+                        $faqs[] = array(
+                            'question' => $question,
+                            'answer' => $answer
+                        );
+                    }
+                }
+            }
+        }
+        
+        // Method 3: Look for definition lists (dl/dt/dd)
+        if (preg_match_all('/<dt[^>]*>([^<]+)<\/dt>\s*<dd[^>]*>([^<]+)<\/dd>/i', $content, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $question = wp_strip_all_tags(trim($match[1]));
+                $answer = wp_strip_all_tags(trim($match[2]));
+                
+                if (!empty($question) && !empty($answer)) {
+                    $faqs[] = array(
+                        'question' => $question,
+                        'answer' => $answer
+                    );
+                }
+            }
+        }
+        
+        // Remove duplicates
+        $unique_faqs = array();
+        foreach ($faqs as $faq) {
+            $key = md5($faq['question'] . $faq['answer']);
+            if (!isset($unique_faqs[$key])) {
+                $unique_faqs[$key] = $faq;
+            }
+        }
+        
+        return array_values($unique_faqs);
+    }
+    
+    /**
+     * v4.0.3 - Add FAQ schema markup
+     */
+    public function add_faq_schema() {
+        if (empty($this->options['enable_faq_schema']) || !is_singular()) {
+            return;
+        }
+        
+        global $post;
+        
+        // Detect FAQ content
+        $faqs = $this->detect_faq_content($post);
+        
+        if (empty($faqs)) {
+            return;
+        }
+        
+        // Generate FAQ schema
+        $schema = array(
+            '@context' => 'https://schema.org',
+            '@type' => 'FAQPage',
+            'mainEntity' => array()
+        );
+        
+        foreach ($faqs as $faq) {
+            $schema['mainEntity'][] = array(
+                '@type' => 'Question',
+                'name' => $faq['question'],
+                'acceptedAnswer' => array(
+                    '@type' => 'Answer',
+                    'text' => $faq['answer']
+                )
+            );
+        }
+        
+        // Output FAQ schema
+        echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+    }
+    
     public function activate() {
         $default_options = array(
             'enable_auto_rating' => 1,
@@ -355,6 +478,8 @@ class GSC_Schema_Fix {
             'enable_auto_language_detection' => 1,
             // v4.0.2 - Schema validation
             'enable_schema_validation' => 1,
+            // v4.0.3 - FAQ schema
+            'enable_faq_schema' => 1,
         );
         
         add_option('gsc_schema_fix_options', $default_options);
@@ -788,6 +913,16 @@ class GSC_Schema_Fix {
                                 <span class="gsc-toggle-label"><?php _e('Validate schema markup for errors', 'gsc-schema-fix'); ?></span>
                             </td>
                         </tr>
+                        <tr>
+                            <th><?php _e('FAQ Schema Detection', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_faq_schema" value="1" <?php checked(!empty($this->options['enable_faq_schema'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Automatically detect and add FAQ schema', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
                     </table>
                     
                     <div id="gsc-settings-message"></div>
@@ -898,7 +1033,8 @@ class GSC_Schema_Fix {
             'enable_lazy_loading',
             'enable_caching_headers',
             'enable_auto_language_detection',
-            'enable_schema_validation'
+            'enable_schema_validation',
+            'enable_faq_schema'
         );
         
         foreach ($toggles as $toggle) {
