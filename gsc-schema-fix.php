@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, and automatic GSC error detection and fixing.
- * Version: 4.0.5
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, automatic GSC error detection and fixing, and analytics dashboard.
+ * Version: 4.0.6
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.5');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.6');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -51,6 +51,7 @@ class GSC_Schema_Fix {
         add_action('wp_ajax_gsc_save_settings', array($this, 'ajax_save_settings')); // v4.0.2.1
         add_action('wp_ajax_gsc_scan_errors', array($this, 'ajax_scan_errors')); // v4.0.5
         add_action('wp_ajax_gsc_fix_errors', array($this, 'ajax_fix_errors')); // v4.0.5
+        add_action('wp_ajax_gsc_get_analytics', array($this, 'ajax_get_analytics')); // v4.0.6
         
         // v4.0.5 - Schedule automatic error scanning
         add_action('gsc_schema_fix_daily_scan', array($this, 'run_daily_error_scan'));
@@ -715,6 +716,15 @@ class GSC_Schema_Fix {
         update_option('gsc_schema_fix_detected_errors', $errors);
         update_option('gsc_schema_fix_last_scan', current_time('mysql'));
         
+        // v4.0.6 - Track error history for analytics
+        $history = get_option('gsc_schema_fix_error_history', array());
+        $history[date('Y-m-d')] = count($errors);
+        // Keep only last 30 days
+        if (count($history) > 30) {
+            $history = array_slice($history, -30, null, true);
+        }
+        update_option('gsc_schema_fix_error_history', $history);
+        
         // Auto-fix if enabled
         if (!empty($this->options['enable_auto_fix']) && !empty($errors)) {
             $fixed = $this->auto_fix_errors($errors);
@@ -775,6 +785,132 @@ class GSC_Schema_Fix {
             'fixed' => count($fixed),
             'remaining' => count($remaining_errors),
         ));
+    }
+    
+    /**
+     * v4.0.6 - Track schema generation for analytics
+     * @param int $product_id Product ID
+     * @param array $schema Generated schema
+     */
+    private function track_schema_generation($product_id, $schema) {
+        $stats = get_option('gsc_schema_fix_stats', array(
+            'total_generated' => 0,
+            'products' => array(),
+            'daily_stats' => array(),
+        ));
+        
+        $today = date('Y-m-d');
+        
+        // Increment total
+        $stats['total_generated']++;
+        
+        // Track product
+        if (!isset($stats['products'][$product_id])) {
+            $stats['products'][$product_id] = array(
+                'first_generated' => current_time('mysql'),
+                'count' => 0,
+            );
+        }
+        $stats['products'][$product_id]['count']++;
+        $stats['products'][$product_id]['last_generated'] = current_time('mysql');
+        
+        // Track daily stats
+        if (!isset($stats['daily_stats'][$today])) {
+            $stats['daily_stats'][$today] = array(
+                'generated' => 0,
+                'unique_products' => array(),
+            );
+        }
+        $stats['daily_stats'][$today]['generated']++;
+        $stats['daily_stats'][$today]['unique_products'][$product_id] = true;
+        
+        // Keep only last 30 days of daily stats
+        if (count($stats['daily_stats']) > 30) {
+            $stats['daily_stats'] = array_slice($stats['daily_stats'], -30, null, true);
+        }
+        
+        update_option('gsc_schema_fix_stats', $stats);
+    }
+    
+    /**
+     * v4.0.6 - Get analytics data
+     * @return array Analytics data
+     */
+    private function get_analytics_data() {
+        $stats = get_option('gsc_schema_fix_stats', array(
+            'total_generated' => 0,
+            'products' => array(),
+            'daily_stats' => array(),
+        ));
+        
+        $errors = get_option('gsc_schema_fix_detected_errors', array());
+        $last_scan = get_option('gsc_schema_fix_last_scan');
+        
+        // Get product counts
+        $post_types = !empty($this->detected_platform['post_types']) ? $this->detected_platform['post_types'] : array('product');
+        $total_products = 0;
+        foreach ($post_types as $post_type) {
+            $count = wp_count_posts($post_type);
+            $total_products += isset($count->publish) ? $count->publish : 0;
+        }
+        
+        $products_with_schema = count($stats['products']);
+        $products_with_errors = count($errors);
+        $coverage_percent = $total_products > 0 ? round(($products_with_schema / $total_products) * 100, 1) : 0;
+        
+        // Calculate error trend (last 7 days)
+        $error_history = get_option('gsc_schema_fix_error_history', array());
+        $trend = 'stable';
+        if (count($error_history) >= 2) {
+            $recent = array_slice($error_history, -7, null, true);
+            $first_count = reset($recent);
+            $last_count = end($recent);
+            if ($last_count < $first_count) {
+                $trend = 'improving';
+            } elseif ($last_count > $first_count) {
+                $trend = 'worsening';
+            }
+        }
+        
+        // Get daily generation stats for chart (last 7 days)
+        $daily_chart = array();
+        for ($i = 6; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime("-$i days"));
+            $daily_chart[$date] = isset($stats['daily_stats'][$date]) ? 
+                count($stats['daily_stats'][$date]['unique_products']) : 0;
+        }
+        
+        return array(
+            'overview' => array(
+                'total_products' => $total_products,
+                'products_with_schema' => $products_with_schema,
+                'products_with_errors' => $products_with_errors,
+                'coverage_percent' => $coverage_percent,
+                'total_generated' => $stats['total_generated'],
+                'platform' => $this->detected_platform['name'],
+            ),
+            'errors' => array(
+                'current_count' => $products_with_errors,
+                'last_scan' => $last_scan,
+                'trend' => $trend,
+            ),
+            'daily_chart' => $daily_chart,
+        );
+    }
+    
+    /**
+     * v4.0.6 - AJAX handler to get analytics
+     */
+    public function ajax_get_analytics() {
+        check_ajax_referer('gsc_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized');
+            return;
+        }
+        
+        $analytics = $this->get_analytics_data();
+        wp_send_json_success($analytics);
     }
     
     public function activate() {
@@ -860,6 +996,9 @@ class GSC_Schema_Fix {
         $schema = $this->generate_product_schema($post);
         
         if ($schema) {
+            // v4.0.6 - Track schema generation
+            $this->track_schema_generation($post->ID, $schema);
+            
             echo "\n<!-- GSC Schema Fix v" . GSC_SCHEMA_FIX_VERSION . " -->\n";
             echo '<script type="application/ld+json">' . "\n";
             echo wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
@@ -1150,6 +1289,17 @@ class GSC_Schema_Fix {
         <div class="wrap gsc-admin-wrap">
             <h1><?php _e('GSC Schema Fix - Settings', 'gsc-schema-fix'); ?></h1>
             <p class="gsc-version"><?php _e('Version', 'gsc-schema-fix'); ?>: <strong><?php echo GSC_SCHEMA_FIX_VERSION; ?></strong></p>
+            
+            <div class="gsc-admin-section">
+                <h2><?php _e('Analytics Dashboard', 'gsc-schema-fix'); ?></h2>
+                <p><?php _e('Schema performance metrics and coverage statistics.', 'gsc-schema-fix'); ?></p>
+                
+                <div id="gsc-analytics-dashboard">
+                    <div class="gsc-analytics-loading">
+                        <span class="spinner is-active"></span> <?php _e('Loading analytics...', 'gsc-schema-fix'); ?>
+                    </div>
+                </div>
+            </div>
             
             <div class="gsc-admin-section">
                 <h2><?php _e('Schema Testing Tool', 'gsc-schema-fix'); ?></h2>

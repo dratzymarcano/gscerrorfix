@@ -1,4 +1,99 @@
 jQuery(document).ready(function($) {
+    // v4.0.6 - Load Analytics Dashboard
+    function loadAnalytics() {
+        $.ajax({
+            url: gscAjax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'gsc_get_analytics',
+                nonce: gscAjax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    var data = response.data;
+                    displayAnalytics(data);
+                } else {
+                    $('#gsc-analytics-dashboard').html(
+                        '<div class="notice notice-error"><p>Failed to load analytics</p></div>'
+                    );
+                }
+            },
+            error: function() {
+                $('#gsc-analytics-dashboard').html(
+                    '<div class="notice notice-error"><p>Error loading analytics</p></div>'
+                );
+            }
+        });
+    }
+    
+    function displayAnalytics(data) {
+        var overview = data.overview;
+        var errors = data.errors;
+        var chart = data.daily_chart;
+        
+        var coverageClass = overview.coverage_percent >= 80 ? 'success' : 
+                           (overview.coverage_percent >= 50 ? 'warning' : 'error');
+        
+        var trendIcon = errors.trend === 'improving' ? '📈 Improving' : 
+                       (errors.trend === 'worsening' ? '📉 Worsening' : '➡️ Stable');
+        
+        var html = '<div class="gsc-analytics-grid">';
+        
+        // Overview Cards
+        html += '<div class="gsc-stat-card">';
+        html += '<h3>Total Products</h3>';
+        html += '<div class="gsc-stat-value">' + overview.total_products + '</div>';
+        html += '<small>Platform: ' + overview.platform + '</small>';
+        html += '</div>';
+        
+        html += '<div class="gsc-stat-card">';
+        html += '<h3>Schema Coverage</h3>';
+        html += '<div class="gsc-stat-value gsc-score-' + coverageClass + '">' + overview.coverage_percent + '%</div>';
+        html += '<small>' + overview.products_with_schema + ' products with schema</small>';
+        html += '</div>';
+        
+        html += '<div class="gsc-stat-card">';
+        html += '<h3>Active Errors</h3>';
+        html += '<div class="gsc-stat-value' + (errors.current_count > 0 ? ' gsc-score-error' : '') + '">' + errors.current_count + '</div>';
+        html += '<small>' + trendIcon + '</small>';
+        html += '</div>';
+        
+        html += '<div class="gsc-stat-card">';
+        html += '<h3>Total Generated</h3>';
+        html += '<div class="gsc-stat-value">' + overview.total_generated.toLocaleString() + '</div>';
+        html += '<small>Schema markups created</small>';
+        html += '</div>';
+        
+        html += '</div>'; // End grid
+        
+        // Chart
+        html += '<div class="gsc-chart-container">';
+        html += '<h3>Daily Schema Generation (Last 7 Days)</h3>';
+        html += '<div class="gsc-chart">';
+        
+        var maxValue = Math.max(...Object.values(chart), 1);
+        for (var date in chart) {
+            var count = chart[date];
+            var height = maxValue > 0 ? (count / maxValue) * 100 : 0;
+            var dateLabel = new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            
+            html += '<div class="gsc-chart-bar">';
+            html += '<div class="gsc-bar-fill" style="height: ' + height + '%;" title="' + count + ' products"></div>';
+            html += '<div class="gsc-bar-label">' + dateLabel + '</div>';
+            html += '<div class="gsc-bar-value">' + count + '</div>';
+            html += '</div>';
+        }
+        
+        html += '</div></div>';
+        
+        $('#gsc-analytics-dashboard').html(html);
+    }
+    
+    // Load analytics on page load
+    if ($('#gsc-analytics-dashboard').length) {
+        loadAnalytics();
+    }
+    
     // Test schema generation
     $('#gsc-test-schema').on('click', function(e) {
         e.preventDefault();
