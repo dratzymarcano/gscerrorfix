@@ -1,4 +1,9 @@
 jQuery(document).ready(function($) {
+    // Make loadAnalytics available globally within this scope
+    window.gscLoadAnalytics = function() {
+        loadAnalytics();
+    };
+    
     // v4.0.6 - Load Analytics Dashboard
     function loadAnalytics() {
         $.ajax({
@@ -225,8 +230,9 @@ jQuery(document).ready(function($) {
     // v4.0.6.1 - Track toggle changes (no auto-save)
     $('#gsc-settings-form input[type="checkbox"]').on('change', function() {
         settingsChanged = true;
-        // Show visual indicator that changes are pending
-        $('#gsc-save-all-settings').addClass('button-primary-blink');
+        // Show visual indicators
+        $('#gsc-save-all-settings').addClass('gsc-save-button-pulse');
+        $('.gsc-save-reminder').fadeIn();
     });
     
     // v4.0.6.1 - Manual Save All Settings button
@@ -234,6 +240,7 @@ jQuery(document).ready(function($) {
         e.preventDefault();
         
         var button = $(this);
+        var buttonText = button.find('.button-text');
         var formData = {
             action: 'gsc_save_settings',
             nonce: gscAjax.nonce
@@ -245,8 +252,10 @@ jQuery(document).ready(function($) {
         });
         
         // Disable button and show saving state
-        button.prop('disabled', true);
-        button.html('<span class="dashicons dashicons-update dashicons-spin"></span> Saving...');
+        button.prop('disabled', true).removeClass('gsc-save-button-pulse');
+        buttonText.text('Saving...');
+        button.find('.dashicons').removeClass('dashicons-saved').addClass('dashicons-update dashicons-spin');
+        $('.gsc-save-reminder').fadeOut();
         
         // Show global saving indicator
         $('#gsc-global-status').removeClass('gsc-status-success gsc-status-error').addClass('gsc-status-saving').show();
@@ -259,8 +268,8 @@ jQuery(document).ready(function($) {
             data: formData,
             success: function(response) {
                 button.prop('disabled', false);
-                button.html('<span class="dashicons dashicons-saved"></span> Save All Settings');
-                button.removeClass('button-primary-blink');
+                buttonText.text('Save All Settings');
+                button.find('.dashicons').removeClass('dashicons-update dashicons-spin').addClass('dashicons-saved');
                 
                 if (response.success) {
                     settingsChanged = false;
@@ -283,9 +292,9 @@ jQuery(document).ready(function($) {
                         });
                     }, 5000);
                     
-                    // Reload analytics
-                    if ($('#gsc-analytics-dashboard').length) {
-                        loadAnalytics();
+                    // Reload analytics using the global function
+                    if (typeof window.gscLoadAnalytics === 'function') {
+                        window.gscLoadAnalytics();
                     }
                 } else {
                     $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-error');
@@ -299,7 +308,8 @@ jQuery(document).ready(function($) {
             },
             error: function() {
                 button.prop('disabled', false);
-                button.html('<span class="dashicons dashicons-saved"></span> Save All Settings');
+                buttonText.text('Save All Settings');
+                button.find('.dashicons').removeClass('dashicons-update dashicons-spin').addClass('dashicons-saved');
                 
                 $('#gsc-global-status').removeClass('gsc-status-saving').addClass('gsc-status-error');
                 $('#gsc-global-status .gsc-status-text').text('✗ Failed to save settings');

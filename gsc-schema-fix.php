@@ -1273,6 +1273,7 @@ class GSC_Schema_Fix {
         }
         
         wp_enqueue_style('gsc-admin-css', GSC_SCHEMA_FIX_PLUGIN_URL . 'assets/admin.css', array(), GSC_SCHEMA_FIX_VERSION);
+        wp_enqueue_style('gsc-admin-modern-css', GSC_SCHEMA_FIX_PLUGIN_URL . 'assets/admin-modern.css', array(), GSC_SCHEMA_FIX_VERSION);
         wp_enqueue_script('gsc-admin-js', GSC_SCHEMA_FIX_PLUGIN_URL . 'assets/admin.js', array('jquery'), GSC_SCHEMA_FIX_VERSION, true);
         
         wp_localize_script('gsc-admin-js', 'gscAjax', array(
@@ -1377,124 +1378,198 @@ class GSC_Schema_Fix {
                 </table>
             </div>
             
-            <div class="gsc-admin-section">
-                <h2><?php _e('Settings', 'gsc-schema-fix'); ?></h2>
-                <p><?php _e('Configure plugin features. Click "Save All Settings" to apply changes.', 'gsc-schema-fix'); ?></p>
+            <div class="gsc-admin-section gsc-settings-section">
+                <div class="gsc-section-header">
+                    <h2><span class="dashicons dashicons-admin-settings"></span> <?php _e('Feature Settings', 'gsc-schema-fix'); ?></h2>
+                    <p><?php _e('Enable or disable features. Click "Save All Settings" when you\'re done.', 'gsc-schema-fix'); ?></p>
+                </div>
                 
                 <form id="gsc-settings-form">
-                    <table class="form-table gsc-settings-table">
-                        <tr>
-                            <th><?php _e('Schema Generation', 'gsc-schema-fix'); ?></th>
-                            <td>
+                    <div class="gsc-settings-grid">
+                        <!-- Schema Generation -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-code-standards"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Schema Generation', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Automatically add schema markup to all products', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_auto_offers" value="1" <?php checked(!empty($this->options['enable_auto_offers'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Enable automatic schema markup for products', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Auto Language Detection', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- Language Detection -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-translation"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Auto Language Detection', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Automatically detect and use your site language', 'gsc-schema-fix'); ?></p>
+                                <?php if (!empty($this->options['enable_auto_language_detection'])): ?>
+                                    <small class="gsc-badge">Detected: <strong><?php echo strtoupper($this->detect_site_language()); ?></strong></small>
+                                <?php endif; ?>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_auto_language_detection" value="1" <?php checked(!empty($this->options['enable_auto_language_detection'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label">
-                                    <?php _e('Automatically detect and use site language', 'gsc-schema-fix'); ?>
-                                    <?php if (!empty($this->options['enable_auto_language_detection'])): ?>
-                                        <br><small style="color: #666;">Detected: <strong><?php echo strtoupper($this->detect_site_language()); ?></strong> (<?php echo get_locale(); ?>)</small>
-                                    <?php endif; ?>
-                                </span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('German Optimization', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- German Optimization -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-flag"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('German Optimization', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Optimizations for German e-commerce sites', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_german_optimization" value="1" <?php checked(!empty($this->options['enable_german_optimization'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Enable German e-commerce optimizations', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Discrete Shipping', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- Discrete Shipping -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-privacy"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Discrete Shipping', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Add discrete shipping details to schema markup', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="discrete_shipping" value="1" <?php checked(!empty($this->options['discrete_shipping'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Add discrete shipping details to schema', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Meta Optimization', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- Meta Optimization -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-editor-code"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Meta Optimization', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Optimize meta tags for better SEO performance', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_meta_optimization" value="1" <?php checked(!empty($this->options['enable_meta_optimization'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Optimize meta tags for SEO', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Content Enhancement', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- Content Enhancement -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-admin-links"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Content Enhancement', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Automatically add internal links to product pages', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_content_enhancement" value="1" <?php checked(!empty($this->options['enable_content_enhancement'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Add internal links to product content', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Performance Features', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- Performance Features -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-performance"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Performance Features', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Enable lazy loading and caching optimizations', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_lazy_loading" value="1" <?php checked(!empty($this->options['enable_lazy_loading'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Enable lazy loading and caching', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Schema Validation', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- Schema Validation -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-yes-alt"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Schema Validation', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Validate schema markup and detect errors', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_schema_validation" value="1" <?php checked(!empty($this->options['enable_schema_validation'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Validate schema markup for errors', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('FAQ Schema Detection', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- FAQ Schema -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-editor-help"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('FAQ Schema Detection', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Automatically detect and add FAQ schema markup', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_faq_schema" value="1" <?php checked(!empty($this->options['enable_faq_schema'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Automatically detect and add FAQ schema', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php _e('Keyword Extraction', 'gsc-schema-fix'); ?></th>
-                            <td>
+                            </div>
+                        </div>
+
+                        <!-- Keyword Extraction -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-tag"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Keyword Extraction', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Extract keywords and add meta tags for SEO', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
                                 <label class="gsc-toggle">
                                     <input type="checkbox" name="enable_keyword_extraction" value="1" <?php checked(!empty($this->options['enable_keyword_extraction'])); ?>>
                                     <span class="gsc-toggle-slider"></span>
                                 </label>
-                                <span class="gsc-toggle-label"><?php _e('Extract and add keywords meta tag', 'gsc-schema-fix'); ?></span>
-                            </td>
-                        </tr>
-                    </table>
+                            </div>
+                        </div>
+                    </div>
                     
-                    <p class="submit">
-                        <button type="button" id="gsc-save-all-settings" class="button button-primary button-hero">
-                            <span class="dashicons dashicons-saved"></span> <?php _e('Save All Settings', 'gsc-schema-fix'); ?>
+                    <div class="gsc-save-section">
+                        <button type="button" id="gsc-save-all-settings" class="gsc-save-button">
+                            <span class="dashicons dashicons-saved"></span>
+                            <span class="button-text"><?php _e('Save All Settings', 'gsc-schema-fix'); ?></span>
                         </button>
-                    </p>
+                        <p class="gsc-save-reminder" style="display: none;">
+                            <span class="dashicons dashicons-info"></span>
+                            <?php _e('Remember to save your changes!', 'gsc-schema-fix'); ?>
+                        </p>
+                    </div>
                     
                     <div id="gsc-settings-message"></div>
                 </form>
