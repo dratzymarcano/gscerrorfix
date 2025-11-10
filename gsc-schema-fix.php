@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: GSC Schema Fix Pro Enterprise
+ * Plugin Name: Universal SEO & Schema Fix - AI-Powered
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Enterprise-grade SEO optimization suite with AI-powered content enhancement, real-time schema validation, competitor analysis, and automated technical SEO fixes specifically designed for e-commerce sites.
- * Version: 3.0.0
+ * Description: 🚀 ZERO-CONFIG SEO automation for ANY e-commerce platform. Auto-fixes ALL GSC errors, optimizes for AI search (Google AI Overview, Bing Chat), generates intelligent FAQ schemas, extracts & ranks for website keywords. Install & forget - it does EVERYTHING automatically!
+ * Version: 4.0.0
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '3.0.0');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.0');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -34,16 +34,23 @@ define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-analytics-dashboard.php';
 require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-schema-validator.php';
 require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-ai-optimizer.php';
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-ecommerce-detector.php';
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-faq-detector.php';
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-keyword-extractor.php';
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-error-fixer.php';
+require_once GSC_SCHEMA_FIX_PLUGIN_DIR . 'includes/class-gsc-ai-search-optimizer.php';
 
 class GSC_Schema_Fix {
     
     private $options;
-    private $meta_optimizer;
-    private $content_enhancer;
-    private $performance_optimizer;
     private $analytics_dashboard;
     private $schema_validator;
     private $ai_optimizer;
+    private $ecommerce_detector;
+    private $faq_detector;
+    private $keyword_extractor;
+    private $gsc_error_fixer;
+    private $ai_search_optimizer;
     
     public function __construct() {
         add_action('init', array($this, 'init'));
@@ -86,23 +93,27 @@ class GSC_Schema_Fix {
     }
     
     private function init_optimizers() {
-        // Initialize meta optimizer
-        $this->meta_optimizer = new GSC_Meta_Optimizer($this->options);
+        // Detect e-commerce platform FIRST (auto-configuration)
+        $this->ecommerce_detector = new GSC_Ecommerce_Detector();
+        $platform_config = $this->ecommerce_detector->auto_detect_and_configure();
         
-        // Initialize content enhancer
-        $this->content_enhancer = new GSC_Content_Enhancer($this->options);
+        // Apply platform-specific settings
+        $this->options = array_merge($this->options, $platform_config);
+        update_option('gsc_schema_fix_options', $this->options);
         
-        // Initialize performance optimizer
-        $this->performance_optimizer = new GSC_Performance_Optimizer($this->options);
-        
-        // Initialize analytics dashboard
+        // Initialize core optimizers (only classes that exist)
         $this->analytics_dashboard = new GSC_Analytics_Dashboard($this->options);
-        
-        // Initialize schema validator
         $this->schema_validator = new GSC_Schema_Validator($this->options);
-        
-        // Initialize AI optimizer
         $this->ai_optimizer = new GSC_AI_Optimizer($this->options);
+        
+        // Initialize advanced modules
+        $this->faq_detector = new GSC_FAQ_Detector($this->options);
+        $this->keyword_extractor = new GSC_Keyword_Extractor($this->options);
+        $this->gsc_error_fixer = new GSC_Error_Fixer($this->options);
+        $this->ai_search_optimizer = new GSC_AI_Search_Optimizer($this->options);
+        
+        // Note: Meta optimization, content enhancement, and performance features
+        // are handled directly in this class methods below
     }
     
     public function init() {
@@ -489,6 +500,18 @@ class GSC_Schema_Fix {
         global $post;
         $this->options = get_option('gsc_schema_fix_options', array());
         
+        // AUTO-DETECT FAQ pages and add FAQ schema
+        if ($this->faq_detector->is_faq_page($post)) {
+            $this->add_faq_schema($post);
+        }
+        
+        // AUTO-EXTRACT keywords from page and optimize
+        $keywords = $this->keyword_extractor->extract_from_content($post);
+        $this->optimize_for_keywords($post, $keywords);
+        
+        // AI Search optimization for Google AI Overview, Bing Chat, etc.
+        $this->ai_search_optimizer->optimize_for_ai_search($post);
+        
         // Always process products if "enable_for_all_products" is on
         $is_product = $this->is_product_page($post);
         $enabled_post_types = isset($this->options['post_types']) ? $this->options['post_types'] : array('post', 'page', 'product');
@@ -513,6 +536,44 @@ class GSC_Schema_Fix {
             $this->output_schema($schema);
             $this->log_schema_generation($post->ID, $schema);
         }
+    }
+    
+    private function add_faq_schema($post) {
+        // Only add if page doesn't already have FAQ schema
+        if ($this->faq_detector->has_existing_faq_schema($post)) {
+            return;
+        }
+        
+        // Extract FAQs from content
+        $faqs = $this->faq_detector->extract_faqs_from_content($post);
+        
+        if (!empty($faqs)) {
+            $faq_schema = array(
+                '@context' => 'https://schema.org',
+                '@type' => 'FAQPage',
+                'mainEntity' => $faqs
+            );
+            
+            $this->output_schema($faq_schema);
+            
+            // Log for analytics
+            update_post_meta($post->ID, 'gsc_faq_schema_added', current_time('mysql'));
+        }
+    }
+    
+    private function optimize_for_keywords($post, $keywords) {
+        if (empty($keywords)) {
+            return;
+        }
+        
+        // Store keywords for tracking
+        update_post_meta($post->ID, 'gsc_target_keywords', $keywords);
+        
+        // Auto-optimize meta tags with keywords
+        $this->keyword_extractor->optimize_meta_with_keywords($post, $keywords);
+        
+        // Add keyword-rich schema properties
+        $this->keyword_extractor->enhance_schema_with_keywords($post, $keywords);
     }
     
     private function generate_and_output_schema($post) {
