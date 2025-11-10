@@ -1217,6 +1217,14 @@ class GSC_Schema_Fix {
             'enable_error_scanning' => 1,
             'enable_auto_fix' => 1,
             'scan_frequency' => 'daily',
+            // v4.0.7 - AI optimization
+            'enable_howto_schema' => 1,
+            'enable_entity_markup' => 1,
+            'entity_markup_all_pages' => 1,
+            'entity_breadcrumb' => 1,
+            'entity_contact_type' => 'customer service',
+            'entity_contact_email' => 'papierk2@zohomail.eu',
+            'entity_contact_telegram' => '@nspladen',
         );
         
         add_option('gsc_schema_fix_options', $default_options);
