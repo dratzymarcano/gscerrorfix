@@ -331,4 +331,148 @@ jQuery(document).ready(function($) {
             return 'You have unsaved changes. Are you sure you want to leave?';
         }
     });
-});
+});    
+    // v4.0.5 - GSC Error Scanning
+    $('#gsc-scan-errors').on('click', function(e) {
+        e.preventDefault();
+        
+        var button = $(this);
+        
+        // Show loading state
+        button.prop('disabled', true);
+        $('#gsc-scan-loading').show();
+        $('#gsc-error-results').html('');
+        $('#gsc-fix-errors').hide();
+        
+        $.ajax({
+            url: gscAjax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'gsc_scan_errors',
+                nonce: gscAjax.nonce
+            },
+            success: function(response) {
+                button.prop('disabled', false);
+                $('#gsc-scan-loading').hide();
+                
+                if (response.success) {
+                    var data = response.data;
+                    var errors = data.errors;
+                    var totalProducts = data.total_products;
+                    var totalErrors = data.total_errors;
+                    
+                    if (totalProducts === 0) {
+                        $('#gsc-error-results').html(
+                            '<div class="notice notice-success">' +
+                            '<p><strong>✅ No Errors Found!</strong></p>' +
+                            '<p>All your products have valid schema markup. Great job!</p>' +
+                            '</div>'
+                        );
+                    } else {
+                        // Show fix button
+                        $('#gsc-fix-errors').show();
+                        
+                        var html = '<div class="notice notice-warning">' +
+                            '<p><strong>⚠️ Found ' + totalErrors + ' errors in ' + totalProducts + ' products</strong></p>' +
+                            '</div>';
+                        
+                        html += '<h3>Error Details:</h3>';
+                        html += '<div class="gsc-error-list">';
+                        
+                        errors.forEach(function(item) {
+                            html += '<div class="gsc-error-item" style="margin-bottom: 20px; padding: 15px; background: #fff; border-left: 4px solid #f0ad4e; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+                            html += '<h4 style="margin: 0 0 10px;">' + item.product_title + ' (ID: ' + item.product_id + ')</h4>';
+                            html += '<p><a href="' + item.product_url + '" target="_blank">View Product →</a></p>';
+                            html += '<ul style="margin: 10px 0;">';
+                            
+                            item.errors.forEach(function(error) {
+                                var icon = error.severity === 'error' ? '❌' : '⚠️';
+                                html += '<li>' + icon + ' <strong>' + error.field + ':</strong> ' + error.message + '</li>';
+                            });
+                            
+                            html += '</ul>';
+                            html += '</div>';
+                        });
+                        
+                        html += '</div>';
+                        
+                        $('#gsc-error-results').html(html);
+                    }
+                } else {
+                    $('#gsc-error-results').html(
+                        '<div class="notice notice-error"><p><strong>❌ Scan failed:</strong> ' + response.data + '</p></div>'
+                    );
+                }
+            },
+            error: function(xhr, status, error) {
+                button.prop('disabled', false);
+                $('#gsc-scan-loading').hide();
+                $('#gsc-error-results').html(
+                    '<div class="notice notice-error"><p><strong>❌ Error:</strong> Unable to scan products. Please try again.</p></div>'
+                );
+            }
+        });
+    });
+    
+    // v4.0.5 - Auto-Fix Errors
+    $('#gsc-fix-errors').on('click', function(e) {
+        e.preventDefault();
+        
+        if (!confirm('Are you sure you want to automatically fix detected errors? This will modify product data.')) {
+            return;
+        }
+        
+        var button = $(this);
+        
+        // Show loading state
+        button.prop('disabled', true);
+        button.html('<span class="spinner is-active"></span> Fixing...');
+        
+        $.ajax({
+            url: gscAjax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'gsc_fix_errors',
+                nonce: gscAjax.nonce
+            },
+            success: function(response) {
+                button.prop('disabled', false);
+                button.html('<span class="dashicons dashicons-admin-tools"></span> Auto-Fix Errors');
+                
+                if (response.success) {
+                    var fixed = response.data.fixed;
+                    var remaining = response.data.remaining;
+                    
+                    var html = '<div class="notice notice-success">' +
+                        '<p><strong>✅ Fixed ' + fixed + ' products!</strong></p>';
+                    
+                    if (remaining > 0) {
+                        html += '<p>⚠️ ' + remaining + ' products still have errors that require manual fixing.</p>';
+                    } else {
+                        html += '<p>🎉 All errors have been fixed!</p>';
+                        button.hide();
+                    }
+                    
+                    html += '</div>';
+                    
+                    $('#gsc-error-results').prepend(html);
+                    
+                    // Scroll to top
+                    $('html, body').animate({
+                        scrollTop: $('#gsc-error-results').offset().top - 100
+                    }, 500);
+                } else {
+                    $('#gsc-error-results').prepend(
+                        '<div class="notice notice-error"><p><strong>❌ Fix failed:</strong> ' + response.data + '</p></div>'
+                    );
+                }
+            },
+            error: function(xhr, status, error) {
+                button.prop('disabled', false);
+                button.html('<span class="dashicons dashicons-admin-tools"></span> Auto-Fix Errors');
+                $('#gsc-error-results').prepend(
+                    '<div class="notice notice-error"><p><strong>❌ Error:</strong> Unable to fix errors. Please try again.</p></div>'
+                );
+            }
+        });
+    });

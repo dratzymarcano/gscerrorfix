@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, and keyword extraction.
- * Version: 4.0.4
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, and automatic GSC error detection and fixing.
+ * Version: 4.0.5
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.4');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.5');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -49,6 +49,11 @@ class GSC_Schema_Fix {
         // AJAX handlers for admin tools
         add_action('wp_ajax_gsc_test_schema', array($this, 'ajax_test_schema')); // v3.0.0
         add_action('wp_ajax_gsc_save_settings', array($this, 'ajax_save_settings')); // v4.0.2.1
+        add_action('wp_ajax_gsc_scan_errors', array($this, 'ajax_scan_errors')); // v4.0.5
+        add_action('wp_ajax_gsc_fix_errors', array($this, 'ajax_fix_errors')); // v4.0.5
+        
+        // v4.0.5 - Schedule automatic error scanning
+        add_action('gsc_schema_fix_daily_scan', array($this, 'run_daily_error_scan'));
         
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
@@ -539,6 +544,239 @@ class GSC_Schema_Fix {
         echo '<meta name="keywords" content="' . esc_attr($keyword_list) . '">' . "\n";
     }
     
+    /**
+     * v4.0.5 - Scan products for GSC errors
+     * @return array Array of detected errors
+     */
+    private function scan_products_for_errors() {
+        $errors = array();
+        
+        // Get all product post types from detected platform
+        $post_types = !empty($this->detected_platform['post_types']) ? $this->detected_platform['post_types'] : array('product');
+        
+        $args = array(
+            'post_type' => $post_types,
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+        );
+        
+        $products = get_posts($args);
+        
+        foreach ($products as $product) {
+            $product_errors = array();
+            $product_data = $this->get_platform_product_data($product);
+            
+            // Check for missing or invalid price
+            if (empty($product_data['price']) || $product_data['price'] <= 0) {
+                $product_errors[] = array(
+                    'type' => 'missing_price',
+                    'severity' => 'error',
+                    'message' => 'Missing or invalid product price',
+                    'field' => 'offers.price',
+                );
+            }
+            
+            // Check for missing currency
+            if (empty($product_data['currency'])) {
+                $product_errors[] = array(
+                    'type' => 'missing_currency',
+                    'severity' => 'warning',
+                    'message' => 'Missing price currency',
+                    'field' => 'offers.priceCurrency',
+                );
+            }
+            
+            // Check for missing availability
+            if (empty($product_data['availability'])) {
+                $product_errors[] = array(
+                    'type' => 'missing_availability',
+                    'severity' => 'warning',
+                    'message' => 'Missing product availability',
+                    'field' => 'offers.availability',
+                );
+            }
+            
+            // Check for missing product name
+            if (empty($product->post_title)) {
+                $product_errors[] = array(
+                    'type' => 'missing_name',
+                    'severity' => 'error',
+                    'message' => 'Missing product name',
+                    'field' => 'name',
+                );
+            }
+            
+            // Check for missing description
+            if (empty($product->post_content) && empty($product->post_excerpt)) {
+                $product_errors[] = array(
+                    'type' => 'missing_description',
+                    'severity' => 'warning',
+                    'message' => 'Missing product description',
+                    'field' => 'description',
+                );
+            }
+            
+            // Check for missing image
+            if (!has_post_thumbnail($product->ID)) {
+                $product_errors[] = array(
+                    'type' => 'missing_image',
+                    'severity' => 'warning',
+                    'message' => 'Missing product image',
+                    'field' => 'image',
+                );
+            }
+            
+            // If errors found, add to main errors array
+            if (!empty($product_errors)) {
+                $errors[] = array(
+                    'product_id' => $product->ID,
+                    'product_title' => $product->post_title,
+                    'product_url' => get_permalink($product->ID),
+                    'errors' => $product_errors,
+                    'detected_at' => current_time('mysql'),
+                );
+            }
+        }
+        
+        return $errors;
+    }
+    
+    /**
+     * v4.0.5 - Automatically fix detected errors
+     * @param array $errors Array of errors to fix
+     * @return array Array of fixed errors
+     */
+    private function auto_fix_errors($errors) {
+        $fixed = array();
+        
+        foreach ($errors as $error_data) {
+            $product_id = $error_data['product_id'];
+            $product_fixed = false;
+            
+            foreach ($error_data['errors'] as $error) {
+                switch ($error['type']) {
+                    case 'missing_price':
+                        // Set a default price if missing
+                        if (!empty($this->options['enable_auto_fix'])) {
+                            update_post_meta($product_id, '_gsc_default_price', '0.00');
+                            $product_fixed = true;
+                        }
+                        break;
+                        
+                    case 'missing_currency':
+                        // Already handled by default currency option
+                        $product_fixed = true;
+                        break;
+                        
+                    case 'missing_availability':
+                        // Already handled by default availability option
+                        $product_fixed = true;
+                        break;
+                        
+                    case 'missing_description':
+                        // Add auto-generated description if enabled
+                        if (!empty($this->options['enable_auto_fix'])) {
+                            $auto_description = 'Hochwertige Qualität und diskrete Lieferung. Jetzt bestellen!';
+                            if (empty(get_post_field('post_content', $product_id))) {
+                                wp_update_post(array(
+                                    'ID' => $product_id,
+                                    'post_excerpt' => $auto_description,
+                                ));
+                                $product_fixed = true;
+                            }
+                        }
+                        break;
+                }
+            }
+            
+            if ($product_fixed) {
+                $fixed[] = array(
+                    'product_id' => $product_id,
+                    'product_title' => $error_data['product_title'],
+                    'fixed_at' => current_time('mysql'),
+                );
+            }
+        }
+        
+        return $fixed;
+    }
+    
+    /**
+     * v4.0.5 - Run daily error scan (scheduled event)
+     */
+    public function run_daily_error_scan() {
+        if (empty($this->options['enable_error_scanning'])) {
+            return;
+        }
+        
+        $errors = $this->scan_products_for_errors();
+        
+        // Store errors in database
+        update_option('gsc_schema_fix_detected_errors', $errors);
+        update_option('gsc_schema_fix_last_scan', current_time('mysql'));
+        
+        // Auto-fix if enabled
+        if (!empty($this->options['enable_auto_fix']) && !empty($errors)) {
+            $fixed = $this->auto_fix_errors($errors);
+            update_option('gsc_schema_fix_auto_fixed', $fixed);
+        }
+    }
+    
+    /**
+     * v4.0.5 - AJAX handler for manual error scanning
+     */
+    public function ajax_scan_errors() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized');
+            return;
+        }
+        
+        $errors = $this->scan_products_for_errors();
+        
+        // Store errors
+        update_option('gsc_schema_fix_detected_errors', $errors);
+        update_option('gsc_schema_fix_last_scan', current_time('mysql'));
+        
+        wp_send_json_success(array(
+            'errors' => $errors,
+            'total_products' => count($errors),
+            'total_errors' => array_sum(array_map(function($e) { return count($e['errors']); }, $errors)),
+        ));
+    }
+    
+    /**
+     * v4.0.5 - AJAX handler for manual error fixing
+     */
+    public function ajax_fix_errors() {
+        check_ajax_referer('gsc_schema_fix_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized');
+            return;
+        }
+        
+        $errors = get_option('gsc_schema_fix_detected_errors', array());
+        
+        if (empty($errors)) {
+            wp_send_json_error('No errors to fix');
+            return;
+        }
+        
+        $fixed = $this->auto_fix_errors($errors);
+        update_option('gsc_schema_fix_auto_fixed', $fixed);
+        
+        // Re-scan after fixing
+        $remaining_errors = $this->scan_products_for_errors();
+        update_option('gsc_schema_fix_detected_errors', $remaining_errors);
+        
+        wp_send_json_success(array(
+            'fixed' => count($fixed),
+            'remaining' => count($remaining_errors),
+        ));
+    }
+    
     public function activate() {
         $default_options = array(
             'enable_auto_rating' => 1,
@@ -575,13 +813,26 @@ class GSC_Schema_Fix {
             'enable_faq_schema' => 1,
             // v4.0.4 - Keyword extraction
             'enable_keyword_extraction' => 1,
+            // v4.0.5 - GSC error detection and fixing
+            'enable_error_scanning' => 1,
+            'enable_auto_fix' => 1,
+            'scan_frequency' => 'daily',
         );
         
         add_option('gsc_schema_fix_options', $default_options);
+        
+        // v4.0.5 - Schedule daily error scanning
+        if (!wp_next_scheduled('gsc_schema_fix_daily_scan')) {
+            wp_schedule_event(time(), 'daily', 'gsc_schema_fix_daily_scan');
+        }
     }
     
     public function deactivate() {
-        // Clean up if needed
+        // v4.0.5 - Clear scheduled scans
+        $timestamp = wp_next_scheduled('gsc_schema_fix_daily_scan');
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, 'gsc_schema_fix_daily_scan');
+        }
     }
     
     public function add_schema_markup() {
@@ -918,6 +1169,59 @@ class GSC_Schema_Fix {
             </div>
             
             <div class="gsc-admin-section">
+                <h2><?php _e('GSC Error Detection & Fixing', 'gsc-schema-fix'); ?></h2>
+                <p><?php _e('Scan your products for Google Search Console schema errors and automatically fix them.', 'gsc-schema-fix'); ?></p>
+                
+                <div class="gsc-error-controls">
+                    <button type="button" id="gsc-scan-errors" class="button button-primary">
+                        <span class="dashicons dashicons-search"></span> <?php _e('Scan for Errors', 'gsc-schema-fix'); ?>
+                    </button>
+                    <button type="button" id="gsc-fix-errors" class="button button-secondary" style="display: none;">
+                        <span class="dashicons dashicons-admin-tools"></span> <?php _e('Auto-Fix Errors', 'gsc-schema-fix'); ?>
+                    </button>
+                    <span id="gsc-scan-loading" class="gsc-loading" style="display: none;">
+                        <span class="spinner is-active"></span> <?php _e('Scanning...', 'gsc-schema-fix'); ?>
+                    </span>
+                </div>
+                
+                <?php
+                $last_scan = get_option('gsc_schema_fix_last_scan');
+                if ($last_scan) {
+                    echo '<p style="color: #666; font-size: 12px; margin-top: 10px;">' . 
+                         __('Last scan:', 'gsc-schema-fix') . ' ' . 
+                         '<strong>' . date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_scan)) . '</strong>' .
+                         '</p>';
+                }
+                ?>
+                
+                <div id="gsc-error-results"></div>
+                
+                <h3 style="margin-top: 25px;"><?php _e('Automatic Error Scanning', 'gsc-schema-fix'); ?></h3>
+                <table class="form-table gsc-settings-table">
+                    <tr>
+                        <th><?php _e('Error Scanning', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <label class="gsc-toggle">
+                                <input type="checkbox" name="enable_error_scanning" value="1" <?php checked(!empty($this->options['enable_error_scanning'])); ?>>
+                                <span class="gsc-toggle-slider"></span>
+                            </label>
+                            <span class="gsc-toggle-label"><?php _e('Automatically scan for schema errors daily', 'gsc-schema-fix'); ?></span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('Auto-Fix Errors', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <label class="gsc-toggle">
+                                <input type="checkbox" name="enable_auto_fix" value="1" <?php checked(!empty($this->options['enable_auto_fix'])); ?>>
+                                <span class="gsc-toggle-slider"></span>
+                            </label>
+                            <span class="gsc-toggle-label"><?php _e('Automatically fix detected errors', 'gsc-schema-fix'); ?></span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="gsc-admin-section">
                 <h2><?php _e('Settings', 'gsc-schema-fix'); ?></h2>
                 <p><?php _e('Toggle features on/off. Changes are saved automatically.', 'gsc-schema-fix'); ?></p>
                 
@@ -1140,7 +1444,9 @@ class GSC_Schema_Fix {
             'enable_auto_language_detection',
             'enable_schema_validation',
             'enable_faq_schema',
-            'enable_keyword_extraction'
+            'enable_keyword_extraction',
+            'enable_error_scanning',
+            'enable_auto_fix'
         );
         
         foreach ($toggles as $toggle) {
