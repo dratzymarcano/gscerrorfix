@@ -744,12 +744,30 @@ class GSC_Schema_Fix {
             }
             
             // Add contact information if configured
-            if (!empty($this->options['entity_contact_type']) && !empty($this->options['entity_contact_phone'])) {
-                $schema['contactPoint'] = array(
+            if (!empty($this->options['entity_contact_type'])) {
+                $contact_point = array(
                     '@type' => 'ContactPoint',
-                    'telephone' => $this->options['entity_contact_phone'],
                     'contactType' => $this->options['entity_contact_type']
                 );
+                
+                // Add email if provided
+                if (!empty($this->options['entity_contact_email'])) {
+                    $contact_point['email'] = $this->options['entity_contact_email'];
+                }
+                
+                // Add Telegram as URL if provided
+                if (!empty($this->options['entity_contact_telegram'])) {
+                    $telegram = $this->options['entity_contact_telegram'];
+                    // Convert @username to t.me URL if needed
+                    if (strpos($telegram, '@') === 0) {
+                        $telegram = 'https://t.me/' . ltrim($telegram, '@');
+                    }
+                    $contact_point['url'] = $telegram;
+                }
+                
+                if (!empty($contact_point['email']) || !empty($contact_point['url'])) {
+                    $schema['contactPoint'] = $contact_point;
+                }
             }
             
             echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
@@ -1541,7 +1559,8 @@ class GSC_Schema_Fix {
             $options['entity_breadcrumb'] = isset($_POST['entity_breadcrumb']) ? 1 : 0;
             $options['entity_social_profiles'] = isset($_POST['entity_social_profiles']) ? sanitize_textarea_field($_POST['entity_social_profiles']) : '';
             $options['entity_contact_type'] = isset($_POST['entity_contact_type']) ? sanitize_text_field($_POST['entity_contact_type']) : '';
-            $options['entity_contact_phone'] = isset($_POST['entity_contact_phone']) ? sanitize_text_field($_POST['entity_contact_phone']) : '';
+            $options['entity_contact_email'] = isset($_POST['entity_contact_email']) ? sanitize_email($_POST['entity_contact_email']) : '';
+            $options['entity_contact_telegram'] = isset($_POST['entity_contact_telegram']) ? sanitize_text_field($_POST['entity_contact_telegram']) : '';
             
             update_option('gsc_schema_fix_options', $options);
             $this->options = $options;
@@ -1947,10 +1966,14 @@ class GSC_Schema_Fix {
                                     </select>
                                 </p>
                                 <p>
-                                    <label><?php _e('Phone Number:', 'gsc-schema-fix'); ?></label>
-                                    <input type="text" name="entity_contact_phone" value="<?php echo esc_attr(!empty($this->options['entity_contact_phone']) ? $this->options['entity_contact_phone'] : ''); ?>" class="regular-text" placeholder="+49-123-456789">
+                                    <label><?php _e('Email:', 'gsc-schema-fix'); ?></label>
+                                    <input type="email" name="entity_contact_email" value="<?php echo esc_attr(!empty($this->options['entity_contact_email']) ? $this->options['entity_contact_email'] : ''); ?>" class="regular-text" placeholder="support@yoursite.com">
                                 </p>
-                                <p class="description"><?php _e('AI can display this contact information in search results.', 'gsc-schema-fix'); ?></p>
+                                <p>
+                                    <label><?php _e('Telegram:', 'gsc-schema-fix'); ?></label>
+                                    <input type="text" name="entity_contact_telegram" value="<?php echo esc_attr(!empty($this->options['entity_contact_telegram']) ? $this->options['entity_contact_telegram'] : ''); ?>" class="regular-text" placeholder="@yoursupport or https://t.me/yoursupport">
+                                </p>
+                                <p class="description"><?php _e('AI can display this contact information in search results. Provide email and/or Telegram for customer support.', 'gsc-schema-fix'); ?></p>
                             </td>
                         </tr>
                     </table>
@@ -2076,8 +2099,11 @@ class GSC_Schema_Fix {
         if (isset($_POST['entity_contact_type'])) {
             $options['entity_contact_type'] = sanitize_text_field($_POST['entity_contact_type']);
         }
-        if (isset($_POST['entity_contact_phone'])) {
-            $options['entity_contact_phone'] = sanitize_text_field($_POST['entity_contact_phone']);
+        if (isset($_POST['entity_contact_email'])) {
+            $options['entity_contact_email'] = sanitize_email($_POST['entity_contact_email']);
+        }
+        if (isset($_POST['entity_contact_telegram'])) {
+            $options['entity_contact_telegram'] = sanitize_text_field($_POST['entity_contact_telegram']);
         }
         
         // Update option
