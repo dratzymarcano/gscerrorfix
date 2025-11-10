@@ -180,3 +180,146 @@
     background: #005a87;
     transform: translateY(-1px);
 }
+
+/* New optimization features styling */
+.template-preview {
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.optimization-progress {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.progress-bar {
+    position: relative;
+    background: #f0f0f1;
+    border-radius: 10px;
+    height: 20px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745, #20c997);
+    transition: width 2s ease;
+    border-radius: 10px;
+}
+
+.progress-steps {
+    font-size: 14px;
+    color: #666;
+    font-style: italic;
+}
+
+#gsc-optimize-site {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    font-size: 16px;
+    padding: 15px 30px;
+    margin: 10px 0;
+}
+
+#gsc-optimize-site:hover {
+    background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+}
+
+#gsc-optimization-results .notice {
+    margin-top: 20px;
+}
+
+#gsc-optimization-results ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+#gsc-optimization-results li {
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+/* Feature sections */
+.gsc-feature-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.gsc-feature-section h3 {
+    color: white;
+    margin-top: 0;
+    font-size: 18px;
+}
+
+.gsc-feature-section p {
+    margin-bottom: 0;
+    opacity: 0.9;
+}
+
+/* Papierk2.com specific styling */
+.papierk2-optimization {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    color: white;
+    padding: 25px;
+    border-radius: 10px;
+    margin: 25px 0;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.papierk2-optimization h4 {
+    color: white;
+    margin: 0 0 15px 0;
+    font-size: 20px;
+}
+
+.papierk2-optimization ul {
+    margin: 15px 0;
+    padding-left: 25px;
+}
+
+.papierk2-optimization li {
+    margin: 8px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.auto-save-notice {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(0); }
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .gsc-schema-fix-admin .form-table th,
+    .gsc-schema-fix-admin .form-table td {
+        display: block;
+        width: 100%;
+        padding: 10px 0;
+    }
+    
+    .gsc-schema-fix-admin input[type="text"],
+    .gsc-schema-fix-admin input[type="number"],
+    .gsc-schema-fix-admin select {
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .gsc-schema-fix-test-button,
+    #gsc-optimize-site {
+        width: 100%;
+        text-align: center;
+    }
+}
