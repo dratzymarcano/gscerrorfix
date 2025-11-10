@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, and universal platform detection.
- * Version: 4.0.1
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, and schema validation.
+ * Version: 4.0.2
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.1');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.2');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -216,6 +216,112 @@ class GSC_Schema_Fix {
         return $data;
     }
     
+    /**
+     * v4.0.2 - Validate schema markup
+     * @param array $schema Schema data to validate
+     * @return array Validation results (valid, errors, warnings)
+     */
+    private function validate_schema($schema) {
+        $validation = array(
+            'valid' => true,
+            'errors' => array(),
+            'warnings' => array(),
+            'score' => 100
+        );
+        
+        // Check required Product fields
+        if (empty($schema['@type']) || $schema['@type'] !== 'Product') {
+            $validation['errors'][] = 'Missing or invalid @type (must be "Product")';
+            $validation['valid'] = false;
+        }
+        
+        if (empty($schema['name'])) {
+            $validation['errors'][] = 'Missing required field: name';
+            $validation['valid'] = false;
+        }
+        
+        // Check offers
+        if (empty($schema['offers'])) {
+            $validation['errors'][] = 'Missing required field: offers';
+            $validation['valid'] = false;
+        } else {
+            $offer = $schema['offers'];
+            
+            if (empty($offer['price'])) {
+                $validation['errors'][] = 'Offer missing required field: price';
+                $validation['valid'] = false;
+            } elseif (!is_numeric($offer['price']) || $offer['price'] < 0) {
+                $validation['errors'][] = 'Invalid price value: ' . $offer['price'];
+                $validation['valid'] = false;
+            }
+            
+            if (empty($offer['priceCurrency'])) {
+                $validation['errors'][] = 'Offer missing required field: priceCurrency';
+                $validation['valid'] = false;
+            } elseif (strlen($offer['priceCurrency']) !== 3) {
+                $validation['warnings'][] = 'Currency code should be 3 letters (ISO 4217)';
+            }
+            
+            if (empty($offer['availability'])) {
+                $validation['warnings'][] = 'Offer missing recommended field: availability';
+            }
+        }
+        
+        // Check review (recommended)
+        if (empty($schema['review'])) {
+            $validation['warnings'][] = 'Missing recommended field: review';
+        } else {
+            $review = $schema['review'];
+            
+            if (empty($review['reviewRating'])) {
+                $validation['warnings'][] = 'Review missing reviewRating';
+            }
+            
+            if (empty($review['author'])) {
+                $validation['warnings'][] = 'Review missing author';
+            }
+        }
+        
+        // Check aggregateRating (recommended)
+        if (empty($schema['aggregateRating'])) {
+            $validation['warnings'][] = 'Missing recommended field: aggregateRating';
+        } else {
+            $rating = $schema['aggregateRating'];
+            
+            if (empty($rating['ratingValue'])) {
+                $validation['errors'][] = 'AggregateRating missing required field: ratingValue';
+                $validation['valid'] = false;
+            } elseif (!is_numeric($rating['ratingValue'])) {
+                $validation['errors'][] = 'Invalid ratingValue: must be numeric';
+                $validation['valid'] = false;
+            }
+            
+            if (empty($rating['reviewCount']) && empty($rating['ratingCount'])) {
+                $validation['warnings'][] = 'AggregateRating should have reviewCount or ratingCount';
+            }
+        }
+        
+        // Check image (recommended)
+        if (empty($schema['image'])) {
+            $validation['warnings'][] = 'Missing recommended field: image';
+        }
+        
+        // Check description (recommended)
+        if (empty($schema['description'])) {
+            $validation['warnings'][] = 'Missing recommended field: description';
+        } elseif (strlen($schema['description']) < 50) {
+            $validation['warnings'][] = 'Description is very short (< 50 characters)';
+        }
+        
+        // Calculate score
+        $error_count = count($validation['errors']);
+        $warning_count = count($validation['warnings']);
+        
+        $validation['score'] = max(0, 100 - ($error_count * 20) - ($warning_count * 5));
+        
+        return $validation;
+    }
+    
     public function activate() {
         $default_options = array(
             'enable_auto_rating' => 1,
@@ -246,6 +352,8 @@ class GSC_Schema_Fix {
             'enable_caching_headers' => 1,
             // v4.0.0 - Multi-language support
             'enable_auto_language_detection' => 1,
+            // v4.0.2 - Schema validation
+            'enable_schema_validation' => 1,
         );
         
         add_option('gsc_schema_fix_options', $default_options);
@@ -672,6 +780,17 @@ class GSC_Schema_Fix {
                             </span>
                         </td>
                     </tr>
+                    <tr>
+                        <th><?php _e('Schema Validation', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <span class="gsc-status <?php echo !empty($this->options['enable_schema_validation']) ? 'enabled' : 'disabled'; ?>">
+                                <?php echo !empty($this->options['enable_schema_validation']) ? '✅ Enabled' : '❌ Disabled'; ?>
+                            </span>
+                            <?php if (!empty($this->options['enable_schema_validation'])): ?>
+                                <br><small>Validates schema markup for errors and warnings</small>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
                 </table>
             </div>
             
@@ -707,9 +826,13 @@ class GSC_Schema_Fix {
         
         $schema = $this->generate_product_schema($post);
         
+        // v4.0.2 - Add schema validation
+        $validation = $this->validate_schema($schema);
+        
         wp_send_json_success(array(
             'schema' => $schema,
-            'json' => wp_json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+            'json' => wp_json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            'validation' => $validation
         ));
     }
 }

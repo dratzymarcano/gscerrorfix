@@ -237,6 +237,22 @@
     margin: 5px 0;
 }
 
+/* v4.0.2 - Validation score styling */
+.gsc-score-success {
+    color: #00a32a;
+    font-size: 16px;
+}
+
+.gsc-score-warning {
+    color: #dba617;
+    font-size: 16px;
+}
+
+.gsc-score-error {
+    color: #d63638;
+    font-size: 16px;
+}
+
 /* Responsive design */
 @media (max-width: 782px) {
     .gsc-test-form {

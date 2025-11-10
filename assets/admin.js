@@ -34,9 +34,44 @@ jQuery(document).ready(function($) {
                 if (response.success) {
                     var schema = response.data.schema;
                     var json = response.data.json;
+                    var validation = response.data.validation;
                     var hasOffers = schema.offers ? '✅' : '❌';
                     var hasReview = schema.review ? '✅' : '❌';
                     var hasRating = schema.aggregateRating ? '✅' : '❌';
+                    
+                    // Build validation display
+                    var validationHtml = '';
+                    if (validation) {
+                        var validationClass = validation.valid ? 'notice-success' : 'notice-error';
+                        var validationIcon = validation.valid ? '✅' : '❌';
+                        var scoreClass = validation.score >= 80 ? 'success' : (validation.score >= 60 ? 'warning' : 'error');
+                        
+                        validationHtml = '<div class="notice ' + validationClass + '">' +
+                            '<p><strong>' + validationIcon + ' Schema Validation Results</strong></p>' +
+                            '<p>Score: <strong class="gsc-score-' + scoreClass + '">' + validation.score + '/100</strong></p>';
+                        
+                        if (validation.errors && validation.errors.length > 0) {
+                            validationHtml += '<p><strong>Errors:</strong></p><ul>';
+                            validation.errors.forEach(function(error) {
+                                validationHtml += '<li>❌ ' + error + '</li>';
+                            });
+                            validationHtml += '</ul>';
+                        }
+                        
+                        if (validation.warnings && validation.warnings.length > 0) {
+                            validationHtml += '<p><strong>Warnings:</strong></p><ul>';
+                            validation.warnings.forEach(function(warning) {
+                                validationHtml += '<li>⚠️ ' + warning + '</li>';
+                            });
+                            validationHtml += '</ul>';
+                        }
+                        
+                        if (validation.valid && validation.warnings.length === 0) {
+                            validationHtml += '<p>✨ Perfect! Your schema has no errors or warnings.</p>';
+                        }
+                        
+                        validationHtml += '</div>';
+                    }
                     
                     $('#gsc-test-results').html(
                         '<div class="notice notice-success">' +
@@ -44,6 +79,7 @@ jQuery(document).ready(function($) {
                         '<p><strong>Product:</strong> ' + (schema.name || 'N/A') + '</p>' +
                         '<p><strong>Schema Components:</strong> Offers: ' + hasOffers + ' | Review: ' + hasReview + ' | Rating: ' + hasRating + '</p>' +
                         '</div>' +
+                        validationHtml +
                         '<h3>Generated Schema (JSON-LD):</h3>' +
                         '<div class="gsc-schema-preview"><pre>' + json + '</pre></div>' +
                         '<div class="notice notice-info">' +
