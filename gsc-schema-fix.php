@@ -3,7 +3,7 @@
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
  * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, and schema validation.
- * Version: 4.0.2
+ * Version: 4.0.2.1
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.2');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.2.1');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -46,6 +46,7 @@ class GSC_Schema_Fix {
         
         // AJAX handlers for admin tools
         add_action('wp_ajax_gsc_test_schema', array($this, 'ajax_test_schema')); // v3.0.0
+        add_action('wp_ajax_gsc_save_settings', array($this, 'ajax_save_settings')); // v4.0.2.1
         
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
@@ -697,16 +698,105 @@ class GSC_Schema_Fix {
             </div>
             
             <div class="gsc-admin-section">
-                <h2><?php _e('Current Settings', 'gsc-schema-fix'); ?></h2>
+                <h2><?php _e('Settings', 'gsc-schema-fix'); ?></h2>
+                <p><?php _e('Toggle features on/off. Changes are saved automatically.', 'gsc-schema-fix'); ?></p>
+                
+                <form id="gsc-settings-form">
+                    <table class="form-table gsc-settings-table">
+                        <tr>
+                            <th><?php _e('Schema Generation', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_auto_offers" value="1" <?php checked(!empty($this->options['enable_auto_offers'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Enable automatic schema markup for products', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php _e('Auto Language Detection', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_auto_language_detection" value="1" <?php checked(!empty($this->options['enable_auto_language_detection'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label">
+                                    <?php _e('Automatically detect and use site language', 'gsc-schema-fix'); ?>
+                                    <?php if (!empty($this->options['enable_auto_language_detection'])): ?>
+                                        <br><small style="color: #666;">Detected: <strong><?php echo strtoupper($this->detect_site_language()); ?></strong> (<?php echo get_locale(); ?>)</small>
+                                    <?php endif; ?>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php _e('German Optimization', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_german_optimization" value="1" <?php checked(!empty($this->options['enable_german_optimization'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Enable German e-commerce optimizations', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php _e('Discrete Shipping', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="discrete_shipping" value="1" <?php checked(!empty($this->options['discrete_shipping'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Add discrete shipping details to schema', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php _e('Meta Optimization', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_meta_optimization" value="1" <?php checked(!empty($this->options['enable_meta_optimization'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Optimize meta tags for SEO', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php _e('Content Enhancement', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_content_enhancement" value="1" <?php checked(!empty($this->options['enable_content_enhancement'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Add internal links to product content', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php _e('Performance Features', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_lazy_loading" value="1" <?php checked(!empty($this->options['enable_lazy_loading'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Enable lazy loading and caching', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php _e('Schema Validation', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_schema_validation" value="1" <?php checked(!empty($this->options['enable_schema_validation'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                                <span class="gsc-toggle-label"><?php _e('Validate schema markup for errors', 'gsc-schema-fix'); ?></span>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <div id="gsc-settings-message"></div>
+                </form>
+                
+                <hr style="margin: 30px 0;">
+                
+                <h3><?php _e('Site Information', 'gsc-schema-fix'); ?></h3>
                 <table class="form-table gsc-settings-table">
-                    <tr>
-                        <th><?php _e('Schema Enabled', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <span class="gsc-status <?php echo !empty($this->options['enable_auto_offers']) ? 'enabled' : 'disabled'; ?>">
-                                <?php echo !empty($this->options['enable_auto_offers']) ? '✅ Enabled' : '❌ Disabled'; ?>
-                            </span>
-                        </td>
-                    </tr>
                     <tr>
                         <th><?php _e('Default Rating', 'gsc-schema-fix'); ?></th>
                         <td>
@@ -734,60 +824,6 @@ class GSC_Schema_Fix {
                             <?php else: ?>
                                 <span class="gsc-status disabled">❌ No platform detected</span>
                                 <br><small>Schema will use default settings</small>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><?php _e('Auto Language Detection', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <span class="gsc-status <?php echo !empty($this->options['enable_auto_language_detection']) ? 'enabled' : 'disabled'; ?>">
-                                <?php echo !empty($this->options['enable_auto_language_detection']) ? '✅ Enabled' : '❌ Disabled'; ?>
-                            </span>
-                            <?php if (!empty($this->options['enable_auto_language_detection'])): ?>
-                                <br><small>Detected: <strong><?php echo strtoupper($this->detect_site_language()); ?></strong> (<?php echo get_locale(); ?>)</small>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><?php _e('German Optimization', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <span class="gsc-status <?php echo !empty($this->options['enable_german_optimization']) ? 'enabled' : 'disabled'; ?>">
-                                <?php echo !empty($this->options['enable_german_optimization']) ? '✅ Enabled' : '❌ Disabled'; ?>
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><?php _e('Meta Optimization', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <span class="gsc-status <?php echo !empty($this->options['enable_meta_optimization']) ? 'enabled' : 'disabled'; ?>">
-                                <?php echo !empty($this->options['enable_meta_optimization']) ? '✅ Enabled' : '❌ Disabled'; ?>
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><?php _e('Content Enhancement', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <span class="gsc-status <?php echo !empty($this->options['enable_content_enhancement']) ? 'enabled' : 'disabled'; ?>">
-                                <?php echo !empty($this->options['enable_content_enhancement']) ? '✅ Enabled' : '❌ Disabled'; ?>
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><?php _e('Performance Features', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <span class="gsc-status <?php echo !empty($this->options['enable_lazy_loading']) ? 'enabled' : 'disabled'; ?>">
-                                <?php echo !empty($this->options['enable_lazy_loading']) ? '✅ Enabled' : '❌ Disabled'; ?>
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><?php _e('Schema Validation', 'gsc-schema-fix'); ?></th>
-                        <td>
-                            <span class="gsc-status <?php echo !empty($this->options['enable_schema_validation']) ? 'enabled' : 'disabled'; ?>">
-                                <?php echo !empty($this->options['enable_schema_validation']) ? '✅ Enabled' : '❌ Disabled'; ?>
-                            </span>
-                            <?php if (!empty($this->options['enable_schema_validation'])): ?>
-                                <br><small>Validates schema markup for errors and warnings</small>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -833,6 +869,53 @@ class GSC_Schema_Fix {
             'schema' => $schema,
             'json' => wp_json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
             'validation' => $validation
+        ));
+    }
+    
+    /**
+     * v4.0.2.1 - AJAX: Save settings
+     */
+    public function ajax_save_settings() {
+        check_ajax_referer('gsc_admin_nonce', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        // Get current options
+        $options = get_option('gsc_schema_fix_options', array());
+        
+        // Update toggleable settings
+        $toggles = array(
+            'enable_auto_offers',
+            'enable_auto_review',
+            'enable_auto_rating',
+            'enable_german_optimization',
+            'discrete_shipping',
+            'enable_meta_optimization',
+            'enable_content_enhancement',
+            'add_internal_links',
+            'enable_lazy_loading',
+            'enable_caching_headers',
+            'enable_auto_language_detection',
+            'enable_schema_validation'
+        );
+        
+        foreach ($toggles as $toggle) {
+            if (isset($_POST[$toggle])) {
+                $options[$toggle] = intval($_POST[$toggle]);
+            }
+        }
+        
+        // Update option
+        update_option('gsc_schema_fix_options', $options);
+        
+        // Reload options
+        $this->options = $options;
+        
+        wp_send_json_success(array(
+            'message' => 'Settings saved successfully!',
+            'options' => $options
         ));
     }
 }

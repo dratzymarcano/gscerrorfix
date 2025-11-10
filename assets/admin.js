@@ -124,6 +124,54 @@ jQuery(document).ready(function($) {
         });
     });
     
+    // v4.0.2.1 - Handle toggle switches
+    $('#gsc-settings-form input[type="checkbox"]').on('change', function() {
+        var checkbox = $(this);
+        var formData = {
+            action: 'gsc_save_settings',
+            nonce: gscAjax.nonce
+        };
+        
+        // Get all checkbox values
+        $('#gsc-settings-form input[type="checkbox"]').each(function() {
+            formData[$(this).attr('name')] = $(this).is(':checked') ? 1 : 0;
+        });
+        
+        // Show saving indicator
+        $('#gsc-settings-message').html(
+            '<div class="notice notice-info inline"><p>💾 Saving settings...</p></div>'
+        );
+        
+        $.ajax({
+            url: gscAjax.ajax_url,
+            type: 'POST',
+            data: formData,
+            success: function(response) {
+                if (response.success) {
+                    $('#gsc-settings-message').html(
+                        '<div class="notice notice-success inline is-dismissible"><p>✅ ' + response.data.message + '</p></div>'
+                    );
+                    
+                    // Auto-dismiss after 3 seconds
+                    setTimeout(function() {
+                        $('#gsc-settings-message').fadeOut(function() {
+                            $(this).html('').show();
+                        });
+                    }, 3000);
+                } else {
+                    $('#gsc-settings-message').html(
+                        '<div class="notice notice-error inline"><p>❌ Error: ' + response.data + '</p></div>'
+                    );
+                }
+            },
+            error: function() {
+                $('#gsc-settings-message').html(
+                    '<div class="notice notice-error inline"><p>❌ Failed to save settings. Please try again.</p></div>'
+                );
+            }
+        });
+    });
+    
     // Form validation
     $('form').on('submit', function(e) {
         var ratingValue = $('input[name="gsc_schema_fix_options[default_rating_value]"]').val();
