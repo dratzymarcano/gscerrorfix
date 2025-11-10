@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization and admin tools.
- * Version: 3.0.0
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, and multi-language support.
+ * Version: 4.0.0
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '3.0.0');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.0');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -54,6 +54,47 @@ class GSC_Schema_Fix {
     
     public function init() {
         load_plugin_textdomain('gsc-schema-fix', false, dirname(plugin_basename(__FILE__)) . '/languages');
+    }
+    
+    /**
+     * v4.0.0 - Detect site language
+     * @return string Language code (de, en, etc.)
+     */
+    private function detect_site_language() {
+        $locale = get_locale();
+        
+        // Extract language code from locale (e.g., de_DE -> de, en_US -> en)
+        $lang = substr($locale, 0, 2);
+        
+        return $lang;
+    }
+    
+    /**
+     * v4.0.0 - Get localized text
+     * @param string $key Text key
+     * @return string Localized text
+     */
+    private function get_localized_text($key) {
+        $lang = $this->detect_site_language();
+        
+        $texts = array(
+            'review_body_de' => 'Hervorragendes Produkt! Schnelle und diskrete Lieferung. Sehr empfehlenswert für alle, die Wert auf Qualität und Privatsphäre legen.',
+            'review_body_en' => 'Excellent product! Fast and discreet delivery. Highly recommended for anyone who values quality and privacy.',
+            'shop_link_de' => 'Weitere Produkte ansehen',
+            'shop_link_en' => 'View more products',
+            'category_link_de' => 'Ähnliche Produkte',
+            'category_link_en' => 'Similar products',
+        );
+        
+        // Try language-specific key first, fallback to English
+        $specific_key = $key . '_' . $lang;
+        if (isset($texts[$specific_key])) {
+            return $texts[$specific_key];
+        }
+        
+        // Fallback to English
+        $fallback_key = $key . '_en';
+        return isset($texts[$fallback_key]) ? $texts[$fallback_key] : '';
     }
     
     public function activate() {
@@ -84,6 +125,8 @@ class GSC_Schema_Fix {
             // v3.0.0 - Performance
             'enable_lazy_loading' => 1,
             'enable_caching_headers' => 1,
+            // v4.0.0 - Multi-language support
+            'enable_auto_language_detection' => 1,
         );
         
         add_option('gsc_schema_fix_options', $default_options);
@@ -242,11 +285,8 @@ class GSC_Schema_Fix {
             $reviewer_name = !empty($this->options['default_reviewer_name']) ? $this->options['default_reviewer_name'] : get_bloginfo('name');
             $review_date = !empty($this->options['review_date_published']) ? $this->options['review_date_published'] : current_time('Y-m-d');
             
-            // v2.0.0 - German language optimized review body
-            $review_body = 'Excellent product. Highly recommended.';
-            if (!empty($this->options['enable_german_optimization'])) {
-                $review_body = 'Hervorragendes Produkt. Sehr empfehlenswert. Diskrete und schnelle Lieferung.';
-            }
+            // v4.0.0 - Multi-language support with automatic detection
+            $review_body = $this->get_localized_text('review_body');
             
             $schema['review'] = array(
                 '@type' => 'Review',
@@ -348,11 +388,10 @@ class GSC_Schema_Fix {
             return $content;
         }
         
-        // Add related products link at the end
+        // v4.0.0 - Multi-language support for internal links
         if (!empty($this->options['add_internal_links'])) {
-            $related_text = !empty($this->options['enable_german_optimization']) ? 
-                '<p><strong>Weitere interessante Produkte finden Sie in unserem <a href="' . home_url('/shop') . '">Online-Shop</a>.</strong></p>' :
-                '<p><strong>Browse more products in our <a href="' . home_url('/shop') . '">online shop</a>.</strong></p>';
+            $shop_link_text = $this->get_localized_text('shop_link');
+            $related_text = '<p><strong>' . $shop_link_text . ': <a href="' . home_url('/shop') . '">' . get_bloginfo('name') . '</a>.</strong></p>';
             
             $content .= $related_text;
         }
@@ -415,45 +454,108 @@ class GSC_Schema_Fix {
     }
     
     /**
-     * Admin page
+     * Admin page - v3.0.1 Enhanced with better UI and working test tool
      */
     public function admin_page() {
         ?>
-        <div class="wrap">
+        <div class="wrap gsc-admin-wrap">
             <h1><?php _e('GSC Schema Fix - Settings', 'gsc-schema-fix'); ?></h1>
-            <p><?php _e('Version', 'gsc-schema-fix'); ?>: <strong><?php echo GSC_SCHEMA_FIX_VERSION; ?></strong></p>
+            <p class="gsc-version"><?php _e('Version', 'gsc-schema-fix'); ?>: <strong><?php echo GSC_SCHEMA_FIX_VERSION; ?></strong></p>
             
-            <h2><?php _e('Schema Testing Tool', 'gsc-schema-fix'); ?></h2>
-            <p><?php _e('Enter a product ID to test schema generation:', 'gsc-schema-fix'); ?></p>
+            <div class="gsc-admin-section">
+                <h2><?php _e('Schema Testing Tool', 'gsc-schema-fix'); ?></h2>
+                <p><?php _e('Enter a product ID to test schema generation:', 'gsc-schema-fix'); ?></p>
+                
+                <div class="gsc-test-form">
+                    <input type="number" id="gsc-test-product-id" placeholder="<?php _e('Product ID', 'gsc-schema-fix'); ?>" min="1">
+                    <button type="button" id="gsc-test-schema" class="button button-primary">
+                        <span class="dashicons dashicons-search"></span> <?php _e('Test Schema', 'gsc-schema-fix'); ?>
+                    </button>
+                    <span id="gsc-loading" class="gsc-loading" style="display: none;">
+                        <span class="spinner is-active"></span> <?php _e('Testing...', 'gsc-schema-fix'); ?>
+                    </span>
+                </div>
+                
+                <div id="gsc-test-results"></div>
+            </div>
             
-            <input type="number" id="gsc-test-product-id" placeholder="<?php _e('Product ID', 'gsc-schema-fix'); ?>" style="width: 200px;">
-            <button type="button" id="gsc-test-schema" class="button button-primary"><?php _e('Test Schema', 'gsc-schema-fix'); ?></button>
+            <div class="gsc-admin-section">
+                <h2><?php _e('Current Settings', 'gsc-schema-fix'); ?></h2>
+                <table class="form-table gsc-settings-table">
+                    <tr>
+                        <th><?php _e('Schema Enabled', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <span class="gsc-status <?php echo !empty($this->options['enable_auto_offers']) ? 'enabled' : 'disabled'; ?>">
+                                <?php echo !empty($this->options['enable_auto_offers']) ? '✅ Enabled' : '❌ Disabled'; ?>
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('Default Rating', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <strong><?php echo esc_html($this->options['default_rating_value']); ?></strong> / <?php echo esc_html($this->options['rating_best']); ?>
+                            (<?php echo esc_html($this->options['default_rating_count']); ?> reviews)
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('Currency', 'gsc-schema-fix'); ?></th>
+                        <td><strong><?php echo esc_html($this->options['default_currency']); ?></strong></td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('Auto Language Detection', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <span class="gsc-status <?php echo !empty($this->options['enable_auto_language_detection']) ? 'enabled' : 'disabled'; ?>">
+                                <?php echo !empty($this->options['enable_auto_language_detection']) ? '✅ Enabled' : '❌ Disabled'; ?>
+                            </span>
+                            <?php if (!empty($this->options['enable_auto_language_detection'])): ?>
+                                <br><small>Detected: <strong><?php echo strtoupper($this->detect_site_language()); ?></strong> (<?php echo get_locale(); ?>)</small>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('German Optimization', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <span class="gsc-status <?php echo !empty($this->options['enable_german_optimization']) ? 'enabled' : 'disabled'; ?>">
+                                <?php echo !empty($this->options['enable_german_optimization']) ? '✅ Enabled' : '❌ Disabled'; ?>
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('Meta Optimization', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <span class="gsc-status <?php echo !empty($this->options['enable_meta_optimization']) ? 'enabled' : 'disabled'; ?>">
+                                <?php echo !empty($this->options['enable_meta_optimization']) ? '✅ Enabled' : '❌ Disabled'; ?>
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('Content Enhancement', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <span class="gsc-status <?php echo !empty($this->options['enable_content_enhancement']) ? 'enabled' : 'disabled'; ?>">
+                                <?php echo !empty($this->options['enable_content_enhancement']) ? '✅ Enabled' : '❌ Disabled'; ?>
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('Performance Features', 'gsc-schema-fix'); ?></th>
+                        <td>
+                            <span class="gsc-status <?php echo !empty($this->options['enable_lazy_loading']) ? 'enabled' : 'disabled'; ?>">
+                                <?php echo !empty($this->options['enable_lazy_loading']) ? '✅ Enabled' : '❌ Disabled'; ?>
+                            </span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
             
-            <div id="gsc-test-results" style="margin-top: 20px;"></div>
-            
-            <h2><?php _e('Current Settings', 'gsc-schema-fix'); ?></h2>
-            <table class="form-table">
-                <tr>
-                    <th><?php _e('Schema Enabled', 'gsc-schema-fix'); ?></th>
-                    <td><?php echo !empty($this->options['enable_auto_offers']) ? '✅ Yes' : '❌ No'; ?></td>
-                </tr>
-                <tr>
-                    <th><?php _e('Currency', 'gsc-schema-fix'); ?></th>
-                    <td><?php echo esc_html($this->options['default_currency']); ?></td>
-                </tr>
-                <tr>
-                    <th><?php _e('German Optimization', 'gsc-schema-fix'); ?></th>
-                    <td><?php echo !empty($this->options['enable_german_optimization']) ? '✅ Yes' : '❌ No'; ?></td>
-                </tr>
-                <tr>
-                    <th><?php _e('Meta Optimization', 'gsc-schema-fix'); ?></th>
-                    <td><?php echo !empty($this->options['enable_meta_optimization']) ? '✅ Yes' : '❌ No'; ?></td>
-                </tr>
-                <tr>
-                    <th><?php _e('Content Enhancement', 'gsc-schema-fix'); ?></th>
-                    <td><?php echo !empty($this->options['enable_content_enhancement']) ? '✅ Yes' : '❌ No'; ?></td>
-                </tr>
-            </table>
+            <div class="gsc-admin-section">
+                <h2><?php _e('Helpful Links', 'gsc-schema-fix'); ?></h2>
+                <ul class="gsc-links">
+                    <li>📊 <a href="https://search.google.com/search-console" target="_blank"><?php _e('Google Search Console', 'gsc-schema-fix'); ?></a></li>
+                    <li>🔍 <a href="https://search.google.com/test/rich-results" target="_blank"><?php _e('Rich Results Test', 'gsc-schema-fix'); ?></a></li>
+                    <li>📖 <a href="https://schema.org/Product" target="_blank"><?php _e('Schema.org Product Documentation', 'gsc-schema-fix'); ?></a></li>
+                    <li>💻 <a href="https://github.com/dratzymarcano/gscerrorfix" target="_blank"><?php _e('Plugin GitHub Repository', 'gsc-schema-fix'); ?></a></li>
+                </ul>
+            </div>
         </div>
         <?php
     }

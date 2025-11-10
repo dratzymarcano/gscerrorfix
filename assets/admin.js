@@ -4,20 +4,36 @@ jQuery(document).ready(function($) {
         e.preventDefault();
         
         var button = $(this);
-        var originalText = button.text();
+        var productId = $('#gsc-test-product-id').val();
         
-        button.text('🔄 Testing Schema...').prop('disabled', true);
+        if (!productId || productId < 1) {
+            $('#gsc-test-results').html(
+                '<div class="notice notice-error"><p><strong>❌ Error:</strong> Please enter a valid product ID.</p></div>'
+            );
+            return;
+        }
+        
+        // Show loading state
+        button.prop('disabled', true);
+        $('#gsc-loading').show();
+        $('#gsc-test-results').html('');
         
         $.ajax({
-            url: gsc_admin_ajax.ajax_url,
+            url: gscAjax.ajax_url,
             type: 'POST',
             data: {
                 action: 'gsc_test_schema',
-                nonce: gsc_admin_ajax.nonce
+                nonce: gscAjax.nonce,
+                product_id: productId
             },
+            timeout: 10000, // 10 second timeout
             success: function(response) {
+                button.prop('disabled', false);
+                $('#gsc-loading').hide();
+                
                 if (response.success) {
-                    var schema = response.data;
+                    var schema = response.data.schema;
+                    var json = response.data.json;
                     var hasOffers = schema.offers ? '✅' : '❌';
                     var hasReview = schema.review ? '✅' : '❌';
                     var hasRating = schema.aggregateRating ? '✅' : '❌';
@@ -25,14 +41,15 @@ jQuery(document).ready(function($) {
                     $('#gsc-test-results').html(
                         '<div class="notice notice-success">' +
                         '<p><strong>✅ Schema Generation Test Passed!</strong></p>' +
-                        '<p>Offers: ' + hasOffers + ' | Review: ' + hasReview + ' | Rating: ' + hasRating + '</p>' +
+                        '<p><strong>Product:</strong> ' + (schema.name || 'N/A') + '</p>' +
+                        '<p><strong>Schema Components:</strong> Offers: ' + hasOffers + ' | Review: ' + hasReview + ' | Rating: ' + hasRating + '</p>' +
                         '</div>' +
-                        '<h4>Generated Schema (JSON-LD):</h4>' +
-                        '<div class="gsc-schema-fix-preview">' + JSON.stringify(response.data, null, 2) + '</div>' +
+                        '<h3>Generated Schema (JSON-LD):</h3>' +
+                        '<div class="gsc-schema-preview"><pre>' + json + '</pre></div>' +
                         '<div class="notice notice-info">' +
-                        '<p><strong>Next Steps:</strong></p>' +
+                        '<p><strong>🔍 Next Steps:</strong></p>' +
                         '<ul>' +
-                        '<li>Test your pages with <a href="https://search.google.com/test/rich-results" target="_blank">Google\'s Rich Results Test</a></li>' +
+                        '<li>Copy the JSON above and test it with <a href="https://search.google.com/test/rich-results" target="_blank">Google\'s Rich Results Test</a></li>' +
                         '<li>Check your pages in <a href="https://search.google.com/search-console" target="_blank">Google Search Console</a></li>' +
                         '<li>Allow 2-4 weeks for Google to re-crawl and update your search results</li>' +
                         '</ul>' +
@@ -45,8 +62,24 @@ jQuery(document).ready(function($) {
                 }
             },
             error: function(xhr, status, error) {
+                button.prop('disabled', false);
+                $('#gsc-loading').hide();
+                
+                var errorMsg = error;
+                if (status === 'timeout') {
+                    errorMsg = 'Request timed out. The product might not exist or the server is slow.';
+                }
+                
                 $('#gsc-test-results').html(
-                    '<div class="notice notice-error"><p><strong>❌ AJAX request failed:</strong> ' + error + '</p></div>'
+                    '<div class="notice notice-error">' +
+                    '<p><strong>❌ AJAX request failed:</strong> ' + errorMsg + '</p>' +
+                    '<p>Please check:</p>' +
+                    '<ul>' +
+                    '<li>The product ID exists in your database</li>' +
+                    '<li>Your WordPress installation is working correctly</li>' +
+                    '<li>There are no JavaScript console errors</li>' +
+                    '</ul>' +
+                    '</div>'
                 );
             },
             complete: function() {
