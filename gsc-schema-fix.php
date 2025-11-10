@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products.
- * Version: 1.0.0
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information.
+ * Version: 2.0.0
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '1.0.0');
+define('GSC_SCHEMA_FIX_VERSION', '2.0.0');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
 class GSC_Schema_Fix {
@@ -60,6 +60,11 @@ class GSC_Schema_Fix {
             'enable_auto_review' => 1,
             'default_reviewer_name' => get_bloginfo('name'),
             'review_date_published' => current_time('Y-m-d'),
+            // v2.0.0 - papierk2.com specific optimizations
+            'enable_german_optimization' => 1,
+            'discrete_shipping' => 1,
+            'company_name' => get_bloginfo('name'),
+            'company_location' => 'Deutschland',
         );
         
         add_option('gsc_schema_fix_options', $default_options);
@@ -140,13 +145,61 @@ class GSC_Schema_Fix {
         if (!empty($this->options['enable_auto_offers'])) {
             $availability = !empty($this->options['default_availability']) ? $this->options['default_availability'] : 'InStock';
             
-            $schema['offers'] = array(
+            $offer = array(
                 '@type' => 'Offer',
                 'url' => $product_url,
                 'priceCurrency' => $currency,
                 'price' => number_format((float)$price, 2, '.', ''),
                 'availability' => 'https://schema.org/' . $availability,
             );
+            
+            // v2.0.0 - Add discrete shipping info for German e-commerce
+            if (!empty($this->options['discrete_shipping'])) {
+                $offer['shippingDetails'] = array(
+                    '@type' => 'OfferShippingDetails',
+                    'shippingDestination' => array(
+                        '@type' => 'DefinedRegion',
+                        'addressCountry' => 'DE'
+                    ),
+                    'deliveryTime' => array(
+                        '@type' => 'ShippingDeliveryTime',
+                        'businessDays' => array(
+                            '@type' => 'OpeningHoursSpecification',
+                            'dayOfWeek' => array('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+                        ),
+                        'cutoffTime' => '14:00:00',
+                        'handlingTime' => array(
+                            '@type' => 'QuantitativeValue',
+                            'minValue' => 0,
+                            'maxValue' => 1,
+                            'unitCode' => 'DAY'
+                        ),
+                        'transitTime' => array(
+                            '@type' => 'QuantitativeValue',
+                            'minValue' => 2,
+                            'maxValue' => 4,
+                            'unitCode' => 'DAY'
+                        )
+                    )
+                );
+            }
+            
+            // v2.0.0 - Add seller information for German market
+            if (!empty($this->options['enable_german_optimization'])) {
+                $offer['seller'] = array(
+                    '@type' => 'Organization',
+                    'name' => !empty($this->options['company_name']) ? $this->options['company_name'] : get_bloginfo('name')
+                );
+                
+                if (!empty($this->options['company_location'])) {
+                    $offer['seller']['address'] = array(
+                        '@type' => 'PostalAddress',
+                        'addressCountry' => 'DE'
+                    );
+                }
+            }
+            
+            $schema['offers'] = $offer;
         }
         
         // Add aggregateRating (required)
@@ -170,6 +223,12 @@ class GSC_Schema_Fix {
             $reviewer_name = !empty($this->options['default_reviewer_name']) ? $this->options['default_reviewer_name'] : get_bloginfo('name');
             $review_date = !empty($this->options['review_date_published']) ? $this->options['review_date_published'] : current_time('Y-m-d');
             
+            // v2.0.0 - German language optimized review body
+            $review_body = 'Excellent product. Highly recommended.';
+            if (!empty($this->options['enable_german_optimization'])) {
+                $review_body = 'Hervorragendes Produkt. Sehr empfehlenswert. Diskrete und schnelle Lieferung.';
+            }
+            
             $schema['review'] = array(
                 '@type' => 'Review',
                 'reviewRating' => array(
@@ -182,7 +241,7 @@ class GSC_Schema_Fix {
                     'name' => $reviewer_name,
                 ),
                 'datePublished' => $review_date,
-                'reviewBody' => 'Excellent product. Highly recommended.',
+                'reviewBody' => $review_body,
             );
         }
         
