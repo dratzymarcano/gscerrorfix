@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, automatic GSC error detection and fixing, analytics dashboard, and AI search optimization (Google AI Overview).
- * Version: 4.0.7
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, automatic GSC error detection and fixing, analytics dashboard, AI search optimization (Google AI Overview), and comprehensive indexing fixes (canonical, noindex, 404s).
+ * Version: 4.0.8
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.7');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.8');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -42,6 +42,12 @@ class GSC_Schema_Fix {
         add_action('wp_head', array($this, 'add_keywords_meta'), 2); // v4.0.4
         add_action('wp_head', array($this, 'add_howto_schema'), 101); // v4.0.7
         add_action('wp_head', array($this, 'add_entity_markup'), 102); // v4.0.7
+        
+        // v4.0.8 - Indexing fixes
+        add_filter('wp_robots', array($this, 'fix_robots_meta'));
+        add_filter('get_canonical_url', array($this, 'fix_canonical_url'), 10, 2);
+        add_action('template_redirect', array($this, 'handle_404_redirects'));
+        
         add_action('wp_head', array($this, 'optimize_meta_tags'), 1); // v3.0.0
         add_action('the_content', array($this, 'enhance_content')); // v3.0.0
         add_action('wp_footer', array($this, 'add_performance_optimizations')); // v3.0.0
@@ -810,6 +816,54 @@ class GSC_Schema_Fix {
     }
     
     /**
+     * v4.0.8 - Fix "Excluded by noindex tag"
+     * Ensures indexable content is not accidentally noindexed
+     */
+    public function fix_robots_meta($robots) {
+        if (empty($this->options['enable_noindex_fix']) || !is_singular()) {
+            return $robots;
+        }
+        
+        // Force index and follow for products and posts
+        $robots['noindex'] = false;
+        $robots['index'] = true;
+        $robots['follow'] = true;
+        $robots['max-snippet'] = '-1';
+        $robots['max-image-preview'] = 'large';
+        $robots['max-video-preview'] = '-1';
+        
+        return $robots;
+    }
+    
+    /**
+     * v4.0.8 - Fix "Duplicate, Google chose different canonical"
+     * Enforces self-referencing canonical tags
+     */
+    public function fix_canonical_url($canonical_url, $post) {
+        if (empty($this->options['enable_canonical_fix']) || !is_singular()) {
+            return $canonical_url;
+        }
+        
+        // Ensure canonical matches the current permalink exactly
+        // This helps resolve "Alternate page with proper canonical tag" by ensuring consistency
+        return get_permalink($post->ID);
+    }
+    
+    /**
+     * v4.0.8 - Fix "Not found (404)"
+     * Redirects 404 errors to homepage to resolve crawl errors
+     */
+    public function handle_404_redirects() {
+        if (empty($this->options['enable_404_redirect']) || !is_404()) {
+            return;
+        }
+        
+        // Redirect to homepage with 301 status
+        wp_redirect(home_url(), 301);
+        exit;
+    }
+
+    /**
      * v4.0.5 - Scan products for GSC errors
      * @return array Array of detected errors
      */
@@ -1225,6 +1279,10 @@ class GSC_Schema_Fix {
             'entity_contact_type' => 'customer service',
             'entity_contact_email' => 'papierk2@zohomail.eu',
             'entity_contact_telegram' => '@nspladen',
+            // v4.0.8 - Indexing fixes
+            'enable_canonical_fix' => 1,
+            'enable_noindex_fix' => 1,
+            'enable_404_redirect' => 0, // Disabled by default as it's aggressive
         );
         
         add_option('gsc_schema_fix_options', $default_options);
@@ -1868,6 +1926,40 @@ class GSC_Schema_Fix {
                                 </label>
                             </div>
                         </div>
+
+                        <!-- Indexing Fixes (v4.0.8) -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-search"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Fix Indexing Issues', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Fix canonical, noindex, and alternate page errors', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_canonical_fix" value="1" <?php checked(!empty($this->options['enable_canonical_fix'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 404 Redirects (v4.0.8) -->
+                        <div class="gsc-setting-card">
+                            <div class="gsc-setting-icon">
+                                <span class="dashicons dashicons-warning"></span>
+                            </div>
+                            <div class="gsc-setting-content">
+                                <h3><?php _e('Redirect 404s', 'gsc-schema-fix'); ?></h3>
+                                <p><?php _e('Redirect "Not Found" pages to homepage', 'gsc-schema-fix'); ?></p>
+                            </div>
+                            <div class="gsc-setting-toggle">
+                                <label class="gsc-toggle">
+                                    <input type="checkbox" name="enable_404_redirect" value="1" <?php checked(!empty($this->options['enable_404_redirect'])); ?>>
+                                    <span class="gsc-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="gsc-save-section">
@@ -2091,7 +2183,10 @@ class GSC_Schema_Fix {
             'enable_howto_schema',
             'enable_entity_markup',
             'entity_markup_all_pages',
-            'entity_breadcrumb'
+            'entity_breadcrumb',
+            'enable_canonical_fix',
+            'enable_noindex_fix',
+            'enable_404_redirect'
         );
         
         foreach ($toggles as $toggle) {

@@ -247,6 +247,14 @@
     background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
 }
 
+.gsc-setting-card:nth-child(15) .gsc-setting-icon {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.gsc-setting-card:nth-child(16) .gsc-setting-icon {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
 /* Error Detection & Fixing Tools Section */
 .gsc-error-detection {
     background: #fff;
