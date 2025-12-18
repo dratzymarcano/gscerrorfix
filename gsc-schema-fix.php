@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GSC Schema Fix
  * Plugin URI: https://github.com/dratzymarcano/gscerrorfix
- * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, automatic GSC error detection and fixing, analytics dashboard, AI search optimization (Google AI Overview), and comprehensive indexing fixes (canonical, noindex, 404s).
- * Version: 4.0.8
+ * Description: Automatically fixes Google Search Console errors by adding required schema markup (offers, review, aggregateRating) to all products. Optimized for German e-commerce with discrete shipping information. Includes meta optimization, enhanced admin interface, multi-language support, universal platform detection, schema validation, FAQ schema detection, keyword extraction, automatic GSC error detection and fixing, analytics dashboard, AI search optimization (Google AI Overview), comprehensive indexing fixes (canonical, noindex, 404s), and shipping rate schema.
+ * Version: 4.0.9
  * Author: dratzymarcano
  * License: GPL v2 or later
  * Text Domain: gsc-schema-fix
@@ -26,7 +26,7 @@ if (version_compare(PHP_VERSION, '7.4', '<')) {
 }
 
 // Define plugin constants
-define('GSC_SCHEMA_FIX_VERSION', '4.0.8');
+define('GSC_SCHEMA_FIX_VERSION', '4.0.9');
 define('GSC_SCHEMA_FIX_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GSC_SCHEMA_FIX_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -1247,6 +1247,7 @@ class GSC_Schema_Fix {
             // v2.0.0 - papierk2.com specific optimizations
             'enable_german_optimization' => 1,
             'discrete_shipping' => 1,
+            'default_shipping_cost' => '0.00',
             'company_name' => get_bloginfo('name'),
             'company_location' => 'Deutschland',
             // v3.0.0 - Meta optimization
@@ -1391,8 +1392,15 @@ class GSC_Schema_Fix {
             
             // v2.0.0 - Add discrete shipping info for German e-commerce
             if (!empty($this->options['discrete_shipping'])) {
+                $shipping_cost = isset($this->options['default_shipping_cost']) ? $this->options['default_shipping_cost'] : '0.00';
+                
                 $offer['shippingDetails'] = array(
                     '@type' => 'OfferShippingDetails',
+                    'shippingRate' => array(
+                        '@type' => 'MonetaryAmount',
+                        'value' => $shipping_cost,
+                        'currency' => $currency
+                    ),
                     'shippingDestination' => array(
                         '@type' => 'DefinedRegion',
                         'addressCountry' => 'DE'
@@ -1628,10 +1636,13 @@ class GSC_Schema_Fix {
             $options['entity_contact_email'] = isset($_POST['entity_contact_email']) ? sanitize_email($_POST['entity_contact_email']) : '';
             $options['entity_contact_telegram'] = isset($_POST['entity_contact_telegram']) ? sanitize_text_field($_POST['entity_contact_telegram']) : '';
             
+            // Update Shipping settings
+            $options['default_shipping_cost'] = isset($_POST['default_shipping_cost']) ? sanitize_text_field($_POST['default_shipping_cost']) : '0.00';
+            
             update_option('gsc_schema_fix_options', $options);
             $this->options = $options;
             
-            echo '<div class="notice notice-success is-dismissible"><p><strong>✅ AI Optimization settings saved successfully!</strong></p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p><strong>✅ Settings saved successfully!</strong></p></div>';
         }
         
         ?>
@@ -2015,13 +2026,25 @@ class GSC_Schema_Fix {
             
             <div class="gsc-admin-section">
                 <div class="gsc-section-header">
-                    <h2><span class="dashicons dashicons-superhero"></span> <?php _e('AI Overview Optimization Settings', 'gsc-schema-fix'); ?></h2>
-                    <p><?php _e('Configure entity markup and AI-specific features to improve visibility in Google AI Overview and AI-powered search results.', 'gsc-schema-fix'); ?></p>
+                    <h2><span class="dashicons dashicons-admin-generic"></span> <?php _e('Additional Configuration', 'gsc-schema-fix'); ?></h2>
+                    <p><?php _e('Configure shipping details and AI optimization settings.', 'gsc-schema-fix'); ?></p>
                 </div>
                 
                 <form method="post" action="" id="gsc-ai-settings-form">
                     <?php wp_nonce_field('gsc_ai_settings_action', 'gsc_ai_settings_nonce'); ?>
                     
+                    <h3><?php _e('Shipping Settings', 'gsc-schema-fix'); ?></h3>
+                    <table class="form-table gsc-settings-table">
+                        <tr>
+                            <th><?php _e('Default Shipping Cost', 'gsc-schema-fix'); ?></th>
+                            <td>
+                                <input type="text" name="default_shipping_cost" value="<?php echo esc_attr(isset($this->options['default_shipping_cost']) ? $this->options['default_shipping_cost'] : '0.00'); ?>" class="regular-text">
+                                <p class="description"><?php _e('Enter the default shipping cost (e.g. 0.00 for free shipping). This fixes the "Missing field shippingRate" error in GSC.', 'gsc-schema-fix'); ?></p>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <h3><?php _e('AI Overview Optimization', 'gsc-schema-fix'); ?></h3>
                     <table class="form-table gsc-settings-table">
                         <tr>
                             <th><?php _e('Entity Markup Scope', 'gsc-schema-fix'); ?></th>
